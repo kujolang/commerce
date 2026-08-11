@@ -106,11 +106,14 @@ export async function buildSite({siteRoot,ssgPath,kujo='kujo'}) {
     let html=await fs.readFile(file,'utf8'), changed=false;
     for(const p of products) {
       const marker=`<p>KUJO_COMMERCE_PRODUCT_UI:${p.sku}</p>`;
-      if(!html.includes(marker))continue;
-      const rendered=productMarkup(p,String(config.provider||'mock'));
-      html=html.replace(marker,rendered.html);
-      html=html.replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>/,rendered.jsonLd);
-      changed=true;
+      if(html.includes(marker)) {
+        const rendered=productMarkup(p,String(config.provider||'mock'));
+        html=html.replace(marker,rendered.html);
+        html=html.replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>/,rendered.jsonLd);
+        changed=true;
+      }
+      const excerptMarker=`KUJO_COMMERCE_PRODUCT_UI:${p.sku}`;
+      if(html.includes(excerptMarker)){html=html.replaceAll(excerptMarker,'');changed=true}
     }
     if(html.includes('<p>KUJO_COMMERCE_CART_UI</p>')) {
       html=html.replace('<p>KUJO_COMMERCE_CART_UI</p>','<div data-commerce-cart aria-live="polite"></div><div class="actions"><button class="sk-button sk-button--secondary" type="button" data-commerce-clear>Clear cart</button><button class="sk-button" type="button" data-commerce-checkout>Demo checkout</button></div><p role="alert" data-commerce-error></p>');

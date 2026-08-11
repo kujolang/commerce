@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.2 - 2026-08-11
+
+- Remove internal composition markers from SSG-derived listing excerpts.
+
 ## 0.1.1 - 2026-08-11
 
 - Compose Commerce UI and Product JSON-LD after SSG rendering so the SSG can
