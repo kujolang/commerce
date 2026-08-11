@@ -1,0 +1,19 @@
+{
+  "name": "@kujolang/commerce",
+  "version": "0.1.0",
+  "description": "Provider-agnostic commerce for static Kujo sites",
+  "type": "module",
+  "bin": { "kujo-commerce": "bin/kujo-commerce.mjs" },
+  "exports": {
+    ".": "./src/index.mjs",
+    "./runtime": "./runtime/index.mjs"
+  },
+  "files": ["bin", "src", "runtime", "browser", "schemas", "docs", "README.md", "LICENSE"],
+  "scripts": {
+    "test": "node --test",
+    "validate": "node --check bin/kujo-commerce.mjs && node --check runtime/index.mjs && node --check browser/commerce.js && npm test"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": { "yaml": "^2.8.1" },
+  "license": "MIT"
+}

@@ -1,0 +1,1 @@
+{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"kujo-cart/v1","type":"object","required":["schema","items"],"properties":{"schema":{"const":"kujo-cart/v1"},"items":{"type":"array","items":{"type":"object","required":["sku","quantity"],"properties":{"sku":{"type":"string"},"quantity":{"type":"integer","minimum":1}}}}}}

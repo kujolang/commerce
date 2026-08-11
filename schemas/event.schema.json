@@ -1,0 +1,1 @@
+{"$schema":"https://json-schema.org/draft/2020-12/schema","$id":"kujo-commerce-event/v1","type":"object","required":["schema","provider","type"],"properties":{"schema":{"const":"kujo-commerce-event/v1"},"provider":{"enum":["stripe","polar","link","mock"]},"type":{"type":"string"}}}
