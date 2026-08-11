@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.3 - 2026-08-11
+
+- Persist cart quantity input immediately without disrupting input focus.
+
 ## 0.1.2 - 2026-08-11
 
 - Remove internal composition markers from SSG-derived listing excerpts.

@@ -10,7 +10,7 @@ database.
 ## Quick start
 
 ```sh
-npm install github:kujolang/commerce#v0.1.2
+npm install github:kujolang/commerce#v0.1.3
 git clone --depth 1 --branch v1.0.0 https://github.com/kujolang/ssg vendor/ssg
 npx kujo-commerce validate --site .
 npx kujo-commerce build --site . --ssg vendor/ssg/build.kujo
