@@ -10,7 +10,7 @@ database.
 ## Quick start
 
 ```sh
-npm install github:kujolang/commerce#v0.1.3
+npm install github:kujolang/commerce#v0.2.0
 git clone --depth 1 --branch v1.0.0 https://github.com/kujolang/ssg vendor/ssg
 npx kujo-commerce validate --site .
 npx kujo-commerce build --site . --ssg vendor/ssg/build.kujo
@@ -18,7 +18,7 @@ kujo serve output --port 8080
 ```
 
 Create `kujo-commerce.yml`, add `commerce:` metadata to Markdown under
-`content/shop/`, load `assets/commerce/commerce.js` from the site's layout, and
+`content/shop/`, load `<script type="module" src="/assets/commerce/commerce.js"></script>` from the site's layout, and
 place `[data-commerce-cart]` on the cart page. See [products](docs/products.md),
 [providers](docs/providers.md), and [deployment](docs/deployment.md).
 

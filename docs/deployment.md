@@ -9,3 +9,10 @@ Dynamic checkout endpoint: `POST /_kujo/commerce/checkout`, JSON body at most
 preserve the raw body. Configure host-level rate limits for public checkout
 creation and strict allowed origins where appropriate. Link and catalog levels
 need no function or secret.
+
+Load the browser entrypoint as an ES module so its versioned cart-state helper is
+resolved beside it:
+
+```html
+<script type="module" src="/assets/commerce/commerce.js"></script>
+```

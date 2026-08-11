@@ -16,12 +16,15 @@
 `*` Link delegates all semantics to its URL; Commerce cannot verify them.
 
 Stripe uses hosted Checkout Sessions with trusted Price IDs and supports mixed
-line items, quantities, payment/subscription mode, automatic tax, promotion codes,
-success/cancel URLs, metadata, and provider webhooks. Payment Links are a static
+line items, quantities, payment/subscription mode, address/phone collection,
+shipping countries and rates, automatic tax, promotion codes, custom fields,
+success/cancel URLs, metadata, idempotency, and provider webhooks. Payment Links are a static
 fallback. Polar is modeled around one product per checkout; current Checkout
 Sessions, links, digital/software benefits, subscriptions, discounts, portal, and
 webhooks are supported without pretending it is a Stripe-shaped cart. Mock is a
 deterministic public/local demonstration provider. Link requires no server/key.
 
-`kujo-commerce verify` is intentionally read-only. Live verification requires
-explicit credentials; normal builds never query providers.
+`kujo-commerce verify --site .` is intentionally read-only. It checks Stripe
+Price/Product activity, currency, and suspicious display-price drift; Polar
+Product activity/currency; Link HTTP reachability; and Mock locally. Live
+verification requires explicit credentials; normal builds never query providers.

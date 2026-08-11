@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.0 - 2026-08-11
+
+- Add a tested cart state module, complete hosted-checkout options, idempotent
+  attempts, customer portal sessions, stricter capability enforcement, and safer
+  webhook normalization.
+- Emit active provider identifiers in the safe catalog so edge checkout resolves
+  trusted SKUs without browser-supplied provider data.
+- Delegate directly to unmodified SSG behavior when Commerce is missing or
+  disabled.
+- Load the browser entrypoint as an ES module.
+
 ## 0.1.3 - 2026-08-11
 
 - Persist cart quantity input immediately without disrupting input focus.

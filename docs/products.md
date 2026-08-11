@@ -23,6 +23,9 @@ providers:
     webhook_secret_env: STRIPE_WEBHOOK_SECRET
     automatic_tax: false
     promotion_codes: true
+    billing_address_collection: auto
+    phone_collection: false
+    allowed_shipping_countries: [US, CA]
   polar:
     access_token_env: POLAR_ACCESS_TOKEN
     webhook_secret_env: POLAR_WEBHOOK_SECRET
