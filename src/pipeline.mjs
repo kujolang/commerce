@@ -6,7 +6,9 @@ import { capabilities } from './providers.mjs';
 
 const TYPES = new Set(['digital','physical','service','subscription']);
 const CURRENCIES = /^[A-Z]{3}$/;
+const SKU = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const URL_OK = value => { try { const u=new URL(value); return ['http:','https:'].includes(u.protocol); } catch { return false; } };
+const escapeHtml=value=>String(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 
 function frontmatter(text, file) {
   const match = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
@@ -32,6 +34,8 @@ export async function loadProducts(contentDir) {
   for (const file of (await filesUnder(contentDir)).filter(f=>f.endsWith('.md'))) {
     const parsed=frontmatter(await fs.readFile(file,'utf8'),file);
     const c=parsed.meta.commerce;
+    if(Object.hasOwn(parsed.meta,'commerce')&&(typeof c!=='object'||c===null||Array.isArray(c)))throw new Error(`Commerce validation failed\n\nFile:\n  ${file}\n\nProblem:\n  commerce metadata must be an object.`);
+    if(c&&Object.hasOwn(c,'enabled')&&typeof c.enabled!=='boolean')throw new Error(`Commerce validation failed\n\nFile:\n  ${file}\n\nProblem:\n  commerce.enabled must be true or false.`);
     if (!c?.enabled) continue;
     const price=c.price || {};
     products.push({
@@ -54,9 +58,12 @@ export function validateStore(config, products) {
   for (const p of products) {
     const fail=problem=>errors.push(`Commerce validation failed\n\nFile:\n  ${p.source}\n\nProvider:\n  ${provider}\n\nProblem:\n  ${problem}`);
     if (!p.sku) fail('Missing commerce.sku.');
+    else if (!SKU.test(p.sku)) fail(`Invalid SKU '${p.sku}'. Use 1-128 letters, numbers, dots, underscores, or hyphens.`);
     else if (seen.has(p.sku)) fail(`Duplicate SKU '${p.sku}' (also in ${seen.get(p.sku)}).`); else seen.set(p.sku,p.source);
     if (!TYPES.has(p.type)) fail(`Invalid product type '${p.type}'. Expected digital, physical, service, or subscription.`);
+    if (!p.title) fail('Missing product title.');
     if (!CURRENCIES.test(p.currency)) fail(`Invalid currency '${p.currency}'. Use a three-letter uppercase ISO code.`);
+    if (!['available','unavailable'].includes(p.availability)) fail(`Invalid availability '${p.availability}'. Expected available or unavailable.`);
     if (!Number.isInteger(p.cart.min)||!Number.isInteger(p.cart.max)||p.cart.min<1||p.cart.max<p.cart.min||p.cart.max>999) fail('Invalid cart quantity bounds.');
     if (caps) {
       const typeCap={digital:'digital_products',physical:'physical_products',service:'services',subscription:'subscriptions'}[p.type];
@@ -72,13 +79,19 @@ export function validateStore(config, products) {
   if (errors.length) throw new Error(errors.join('\n\n'));
 }
 
+export function buildCatalog(config,products){
+  const activeProvider=String(config.provider||'mock');
+  const publicProvider=value=>activeProvider==='stripe'?{price_id:value?.price_id,url:value?.url}:activeProvider==='polar'?{product_id:value?.product_id,url:value?.url}:activeProvider==='link'?{url:value?.url}:{};
+  return{schema:'kujo-commerce/v1',provider:activeProvider,products:products.map(({sku,title,description,image,url,type,price_display,currency,availability,cart,providers})=>({sku,title,description,image,url,type,price_display,currency,availability,cart,provider:publicProvider(providers[activeProvider])}))};
+}
+
 function productMarkup(p, provider) {
   const available=p.availability==='available';
   const pc=p.providers[provider]||{};
-  const link=pc.url && URL_OK(pc.url) ? `<a class="sk-button" href="${pc.url}" rel="noopener">Buy now</a>` : '';
-  const action=available ? (provider==='link' ? link : `<button class="sk-button" type="button" data-commerce-add="${p.sku}">Add to cart</button>`) : '<button class="sk-button" type="button" disabled>Unavailable</button>';
+  const link=pc.url && URL_OK(pc.url) ? `<a class="sk-button" href="${escapeHtml(pc.url)}" rel="noopener">Buy now</a>` : '';
+  const action=available ? (provider==='link' ? link : `<button class="sk-button" type="button" data-commerce-add="${escapeHtml(p.sku)}">Add to cart</button>`) : '<button class="sk-button" type="button" disabled>Unavailable</button>';
   const data={"@context":"https://schema.org","@type":"Product",name:p.title,description:p.description,sku:p.sku,url:p.url,offers:{"@type":"Offer",priceCurrency:p.currency,price:p.price_display.replace(/[^0-9.]/g,''),availability:available?'https://schema.org/InStock':'https://schema.org/OutOfStock'}};
-  return {html:`<section class="commerce-product" data-commerce-product="${p.sku}"><p class="commerce-price">${p.price_display}</p>${action}<p class="commerce-status" aria-live="polite"></p></section>`,jsonLd:`<script type="application/ld+json">${JSON.stringify(data).replace(/</g,'\\u003c')}</script>`};
+  return {html:`<section class="commerce-product" data-commerce-product="${escapeHtml(p.sku)}"><p class="commerce-price">${escapeHtml(p.price_display)}</p>${action}<p class="commerce-status" aria-live="polite"></p></section>`,jsonLd:`<script type="application/ld+json">${JSON.stringify(data).replace(/</g,'\\u003c')}</script>`};
 }
 
 async function copyTree(from,to) { try { await fs.cp(from,to,{recursive:true}); } catch(e) { if(e.code!=='ENOENT') throw e; } }
@@ -87,9 +100,9 @@ async function run(command,args,cwd) { return new Promise((resolve,reject)=>{ co
 export async function buildSite({siteRoot,ssgPath,kujo='kujo'}) {
   const cfgPath=['kujo-commerce.yml','kujo-commerce.yaml','kujo-commerce.json'].map(n=>path.join(siteRoot,n));
   let selected; for(const p of cfgPath){try{await fs.access(p);selected=p;break}catch{}}
-  if(!selected) throw new Error('Missing kujo-commerce.yml');
+  if(!selected){await run(kujo,['run',path.resolve(ssgPath)],siteRoot);return{disabled:true,products:[],output:path.resolve(siteRoot,'output')}}
   const config=selected.endsWith('.json')?JSON.parse(await fs.readFile(selected,'utf8')):YAML.parse(await fs.readFile(selected,'utf8'));
-  if(config.enabled===false) return {disabled:true,products:[]};
+  if(config.enabled===false){await run(kujo,['run',path.resolve(ssgPath)],siteRoot);return{disabled:true,products:[],output:path.resolve(siteRoot,config.output||'output')}}
   const content=path.resolve(siteRoot,config.content||'content');
   const products=await loadProducts(content); validateStore(config,products);
   const work=path.join(siteRoot,'.kujo-commerce'); await fs.rm(work,{recursive:true,force:true});
@@ -119,9 +132,15 @@ export async function buildSite({siteRoot,ssgPath,kujo='kujo'}) {
       html=html.replace('<p>KUJO_COMMERCE_CART_UI</p>','<div data-commerce-cart aria-live="polite"></div><div class="actions"><button class="sk-button sk-button--secondary" type="button" data-commerce-clear>Clear cart</button><button class="sk-button" type="button" data-commerce-checkout>Demo checkout</button></div><p role="alert" data-commerce-error></p>');
       changed=true;
     }
+    if(html.includes('<p>KUJO_COMMERCE_MOCK_CHECKOUT_UI</p>')) {
+      const routeUrl=value=>{if(!value)return'';try{const url=new URL(value);return url.origin===new URL(config.site_url).origin?`${url.pathname}${url.search}${url.hash}`:value}catch{return value}};
+      const successUrl=routeUrl(config.checkout?.success_url)||'/checkout/success/',cancelUrl=routeUrl(config.checkout?.cancel_url)||'/checkout/cancel/';
+      html=html.replace('<p>KUJO_COMMERCE_MOCK_CHECKOUT_UI</p>',`<div data-commerce-mock-checkout data-success-url="${escapeHtml(successUrl)}" data-cancel-url="${escapeHtml(cancelUrl)}" aria-live="polite"></div>`);
+      changed=true;
+    }
     if(changed)await fs.writeFile(file,html);
   }
-  const catalog={schema:'kujo-commerce/v1',provider:String(config.provider||'mock'),products:products.map(({sku,title,description,image,url,type,price_display,currency,availability,cart,providers})=>({sku,title,description,image,url,type,price_display,currency,availability,cart,provider_public:providers[config.provider]?.url?{url:providers[config.provider].url}:undefined}))};
+  const catalog=buildCatalog(config,products);
   const target=path.join(output,'_kujo','commerce'); await fs.mkdir(target,{recursive:true}); await fs.writeFile(path.join(target,'catalog.json'),JSON.stringify(catalog,null,2)+'\n');
   return {disabled:false,products,catalog,output};
 }
