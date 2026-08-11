@@ -78,7 +78,7 @@ function productMarkup(p, provider) {
   const link=pc.url && URL_OK(pc.url) ? `<a class="sk-button" href="${pc.url}" rel="noopener">Buy now</a>` : '';
   const action=available ? (provider==='link' ? link : `<button class="sk-button" type="button" data-commerce-add="${p.sku}">Add to cart</button>`) : '<button class="sk-button" type="button" disabled>Unavailable</button>';
   const data={"@context":"https://schema.org","@type":"Product",name:p.title,description:p.description,sku:p.sku,url:p.url,offers:{"@type":"Offer",priceCurrency:p.currency,price:p.price_display.replace(/[^0-9.]/g,''),availability:available?'https://schema.org/InStock':'https://schema.org/OutOfStock'}};
-  return `\n<section class="commerce-product" data-commerce-product="${p.sku}"><p class="commerce-price">${p.price_display}</p>${action}<p class="commerce-status" aria-live="polite"></p></section>\n<script type="application/ld+json">${JSON.stringify(data).replace(/</g,'\\u003c')}</script>\n`;
+  return {html:`<section class="commerce-product" data-commerce-product="${p.sku}"><p class="commerce-price">${p.price_display}</p>${action}<p class="commerce-status" aria-live="polite"></p></section>`,jsonLd:`<script type="application/ld+json">${JSON.stringify(data).replace(/</g,'\\u003c')}</script>`};
 }
 
 async function copyTree(from,to) { try { await fs.cp(from,to,{recursive:true}); } catch(e) { if(e.code!=='ENOENT') throw e; } }
@@ -98,10 +98,26 @@ export async function buildSite({siteRoot,ssgPath,kujo='kujo'}) {
   await fs.mkdir(path.join(workAssets,'commerce'),{recursive:true});
   const packageRoot=path.resolve(path.dirname(new URL(import.meta.url).pathname),'..');
   await copyTree(path.join(packageRoot,'browser'),path.join(workAssets,'commerce'));
-  for(const p of products){ const out=path.join(workContent,p.relative); await fs.writeFile(out,`---\n${p.parsed.raw}\n---\n${p.parsed.body}${productMarkup(p,String(config.provider||'mock'))}`); }
+  for(const p of products){ const out=path.join(workContent,p.relative); await fs.writeFile(out,`---\n${p.parsed.raw}\n---\n${p.parsed.body}\n\nKUJO_COMMERCE_PRODUCT_UI:${p.sku}\n`); }
   const output=path.resolve(siteRoot,config.output||'output');
   const args=['run',path.resolve(ssgPath),'--','--content',workContent,'--assets',workAssets,'--output',output,'--site-url',String(config.site_url||'')];
   await run(kujo,args,siteRoot);
+  for(const file of (await filesUnder(output)).filter(f=>f.endsWith('.html'))) {
+    let html=await fs.readFile(file,'utf8'), changed=false;
+    for(const p of products) {
+      const marker=`<p>KUJO_COMMERCE_PRODUCT_UI:${p.sku}</p>`;
+      if(!html.includes(marker))continue;
+      const rendered=productMarkup(p,String(config.provider||'mock'));
+      html=html.replace(marker,rendered.html);
+      html=html.replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>/,rendered.jsonLd);
+      changed=true;
+    }
+    if(html.includes('<p>KUJO_COMMERCE_CART_UI</p>')) {
+      html=html.replace('<p>KUJO_COMMERCE_CART_UI</p>','<div data-commerce-cart aria-live="polite"></div><div class="actions"><button class="sk-button sk-button--secondary" type="button" data-commerce-clear>Clear cart</button><button class="sk-button" type="button" data-commerce-checkout>Demo checkout</button></div><p role="alert" data-commerce-error></p>');
+      changed=true;
+    }
+    if(changed)await fs.writeFile(file,html);
+  }
   const catalog={schema:'kujo-commerce/v1',provider:String(config.provider||'mock'),products:products.map(({sku,title,description,image,url,type,price_display,currency,availability,cart,providers})=>({sku,title,description,image,url,type,price_display,currency,availability,cart,provider_public:providers[config.provider]?.url?{url:providers[config.provider].url}:undefined}))};
   const target=path.join(output,'_kujo','commerce'); await fs.mkdir(target,{recursive:true}); await fs.writeFile(path.join(target,'catalog.json'),JSON.stringify(catalog,null,2)+'\n');
   return {disabled:false,products,catalog,output};

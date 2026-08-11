@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1 - 2026-08-11
+
+- Compose Commerce UI and Product JSON-LD after SSG rendering so the SSG can
+  retain its safe raw-HTML escaping behavior.
+
 ## 0.1.0 - 2026-08-11
 
 - Initial provider-agnostic build pipeline, cart, checkout/webhook runtime,
