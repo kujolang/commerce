@@ -1,22 +1,25 @@
 #!/usr/bin/env node
-import path from 'node:path';
-import { buildSite, loadProducts, validateStore } from '../src/pipeline.mjs';
 import fs from 'node:fs/promises';
-import YAML from 'yaml';
-import { verifyRemote } from '../src/verify.mjs';
+import path from 'node:path';
+import {buildSite,loadProducts,validateStore} from '../src/pipeline.mjs';
+import {loadConfig} from '../src/config.mjs';
+import {providerFor,providerRegistry} from '../src/providers.mjs';
+import {verifyRemote} from '../src/verify.mjs';
 
-const argv=process.argv.slice(2), command=argv.shift()||'help';
-const value=flag=>{const i=argv.indexOf(flag);return i>=0?argv[i+1]:undefined};
-try {
-  if(command==='build') {
-    const result=await buildSite({siteRoot:path.resolve(value('--site')||'.'),ssgPath:path.resolve(value('--ssg')||'vendor/ssg/build.kujo'),kujo:value('--kujo')||'kujo'});
-    console.log(result.disabled?'Commerce disabled':`Commerce build complete\n  Products: ${result.products.length}\n  Output: ${result.output}`);
-  } else if(command==='validate') {
-    const root=path.resolve(value('--site')||'.'), raw=await fs.readFile(path.join(root,'kujo-commerce.yml'),'utf8'), cfg=YAML.parse(raw);
-    const products=await loadProducts(path.join(root,cfg.content||'content')); validateStore(cfg,products); console.log(`Commerce validation passed (${products.length} products)`);
-  } else if(command==='verify') {
-    const root=path.resolve(value('--site')||'.'), raw=await fs.readFile(path.join(root,'kujo-commerce.yml'),'utf8'), cfg=YAML.parse(raw),products=await loadProducts(path.join(root,cfg.content||'content'));validateStore(cfg,products);const results=await verifyRemote(cfg,products);for(const item of results)console.log(`${item.status.toUpperCase()} ${item.sku}: ${item.message}`);if(results.some(item=>item.status==='error'))process.exitCode=1;
-  } else {
-    console.log('Usage: kujo-commerce <build|validate|verify> [--site DIR] [--ssg FILE] [--kujo BIN]');
-  }
-} catch(error){ console.error(error.message); process.exitCode=1; }
+const argv=process.argv.slice(2),command=argv.shift()||'help',flag=name=>argv.includes(name),value=name=>{const index=argv.indexOf(name);return index>=0?argv[index+1]:undefined;};
+const output=(human,data)=>console.log(flag('--json')?JSON.stringify(data,null,2):human);
+const root=()=>path.resolve(value('--site')||'.');
+
+async function context(required=true){const loaded=await loadConfig(root(),{required});if(!loaded.config)return{...loaded,products:[]};const products=await loadProducts(path.resolve(root(),loaded.config.content||'content'));return{...loaded,products};}
+async function init(){const site=root(),configFile=path.join(site,'kujo-commerce.yml'),productFile=path.join(site,'content','shop','example-product.md');for(const file of[configFile,productFile]){try{await fs.access(file);throw new Error(`Refusing to overwrite existing file: ${file}`);}catch(error){if(error.code!=='ENOENT')throw error;}}await fs.mkdir(path.dirname(productFile),{recursive:true});await fs.writeFile(configFile,'enabled: true\nprovider: mock\nsite_url: https://example.com\ncontent: content\noutput: output\ncart:\n  enabled: true\n  multi_item: true\ncheckout:\n  success_url: https://example.com/checkout/success/\n  cancel_url: https://example.com/checkout/cancel/\nproviders:\n  mock:\n    enabled: true\n');await fs.writeFile(productFile,'---\ntitle: Example Product\ncommerce:\n  enabled: true\n  id: example-product\n  sku: example-product\n  type: digital\n  price:\n    amount: 2900\n    currency: USD\n    display: "$29.00"\n  providers:\n    mock: {}\n---\n\nDescribe the product here.\n');output(`Created ${configFile}\nCreated ${productFile}`,{created:[configFile,productFile]});}
+async function doctor(){const {file,config,products}=await context();const checks=[];try{validateStore(config,products,{configFile:file});checks.push({id:'configuration',status:'ok',message:`${products.length} purchasable items validated.`});}catch(error){checks.push({id:'configuration',status:'error',message:error.message});}const provider=String(config.provider||'mock'),adapter=providerFor(provider),providerConfig=config.providers?.[provider]||{},overrides=Object.entries(providerConfig).filter(([key])=>key.endsWith('_env')).map(([,entry])=>entry);for(const fallback of new Set([...adapter.environment,...overrides])){const configuredKey=Object.entries(providerConfig).find(([,value])=>value===fallback)?.[1]||fallback;checks.push({id:`env:${configuredKey}`,status:process.env[configuredKey]?'ok':'warning',message:process.env[configuredKey]?`${configuredKey} is available.`:`${configuredKey} is not set; live verification/runtime features may be unavailable.`});}if(config.checkout?.success_url)checks.push({id:'checkout-success',status:String(config.checkout.success_url).startsWith('https://')?'ok':'warning',message:'Production checkout redirects should use HTTPS.'});if(adapter.capabilities.dynamic_checkout)checks.push({id:'rate-limit',status:config.runtime?.rate_limit_documented?'ok':'warning',message:'Deployment must enforce checkout rate limiting.'});if(adapter.capabilities.webhooks)checks.push({id:'webhook-dedupe',status:config.webhooks?.deduplication?'ok':'warning',message:'Production fulfillment requires durable webhook deduplication.'});const failed=checks.some(check=>check.status==='error');output(checks.map(check=>`${check.status.toUpperCase()} ${check.id}: ${check.message}`).join('\n'),{provider,checks});if(failed)process.exitCode=1;}
+
+try{
+  if(command==='build'){const result=await buildSite({siteRoot:root(),ssgPath:path.resolve(value('--ssg')||'vendor/ssg/build.kujo'),kujo:value('--kujo')||'kujo'});output(result.disabled?'Commerce disabled':`Commerce build complete\n  Products: ${result.products.length}\n  Output: ${result.output}`,result);}
+  else if(command==='validate'){const {file,config,products}=await context();validateStore(config,products,{configFile:file});output(`Commerce validation passed (${products.length} purchasable items)`,{valid:true,file,products:products.length,provider:config.provider||'mock'});}
+  else if(command==='verify'||(command==='provider'&&argv[0]==='verify')){const {file,config,products}=await context();validateStore(config,products,{configFile:file});const results=await verifyRemote(config,products);output(results.map(item=>`${item.status.toUpperCase()} ${item.sku}: ${item.message}`).join('\n'),{provider:config.provider||'mock',results});if(results.some(item=>item.status==='error'))process.exitCode=1;}
+  else if(command==='providers'){const list=providerRegistry.list().map(provider=>({id:provider.id,version:provider.version,capabilities:provider.capabilities}));output(list.map(provider=>`${provider.id} ${provider.version}\n  ${Object.entries(provider.capabilities).filter(([,enabled])=>enabled).map(([name])=>name).join(', ')}`).join('\n'),list);}
+  else if(command==='doctor')await doctor();
+  else if(command==='init')await init();
+  else output('Usage: kujo-commerce <init|build|validate|doctor|providers|verify|provider verify> [--site DIR] [--json] [--ssg FILE] [--kujo BIN]',{commands:['init','build','validate','doctor','providers','verify','provider verify']});
+}catch(error){if(flag('--json'))console.error(JSON.stringify({error:error.message}));else console.error(error.message);process.exitCode=1;}

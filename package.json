@@ -1,19 +1,31 @@
 {
   "name": "@kujolang/commerce",
-  "version": "0.2.0",
-  "description": "Provider-agnostic commerce for static Kujo sites",
+  "version": "0.3.0",
+  "description": "Provider-agnostic commerce for static sites with first-class Kujo SSG integration",
   "type": "module",
   "bin": { "kujo-commerce": "bin/kujo-commerce.mjs" },
   "exports": {
     ".": "./src/index.mjs",
-    "./runtime": "./runtime/index.mjs"
+    "./runtime": "./runtime/index.mjs",
+    "./runtime/cloudflare": "./runtime/cloudflare.mjs",
+    "./runtime/node": "./runtime/node.mjs",
+    "./runtime/vercel": "./runtime/vercel.mjs",
+    "./runtime/netlify": "./runtime/netlify.mjs",
+    "./conformance": "./src/conformance.mjs",
+    "./browser/*": "./browser/*",
+    "./schemas/*": "./schemas/*"
   },
-  "files": ["bin", "src", "runtime", "browser", "schemas", "docs", "README.md", "LICENSE"],
+  "files": ["bin", "src", "runtime", "browser", "schemas", "docs", "README.md", "SECURITY.md", "LICENSE"],
   "scripts": {
-    "test": "node --test",
-    "validate": "node --check bin/kujo-commerce.mjs && node --check runtime/index.mjs && node --check browser/commerce.js && npm test"
+    "test": "node --test test/*.test.mjs",
+    "test:browser": "playwright test",
+    "test:sandbox": "node --test test/sandbox/*.sandbox.mjs",
+    "test:schemas": "node --test test/schema.test.mjs",
+    "security:patterns": "node scripts/security-patterns.mjs",
+    "validate": "node --check bin/kujo-commerce.mjs && node --check runtime/index.mjs && node --check browser/commerce.js && npm run security:patterns && npm test"
   },
   "engines": { "node": ">=20" },
   "dependencies": { "yaml": "^2.8.1" },
+  "devDependencies": { "@playwright/test": "^1.55.0", "ajv": "^8.17.1", "ajv-formats": "^3.0.1" },
   "license": "MIT"
 }
