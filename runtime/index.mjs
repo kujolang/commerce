@@ -13,12 +13,31 @@ export async function verifyPolar(raw,headers,secret,tolerance=300){return provi
 
 function requestContext(config,context={}){return{...context,timeoutMs:config.runtime?.timeout_ms||config.timeout_ms||10000};}
 
-export async function checkoutHandler(request,{catalog,config,env={},fetch:requestFetch,onDiagnostic}={}){
+function clientKey(request){return request.headers.get('cf-connecting-ip')||request.headers.get('x-real-ip')||'anonymous';}
+async function rateLimit(request,options,scope){
+  if(!options.rateLimiter)return null;
+  const key=await (options.rateLimitKey?.(request,scope)||clientKey(request));
+  const result=await options.rateLimiter.check(`${scope}:${key}`);
+  if(result.allowed)return null;
+  return error('Too many requests',429,{'retry-after':String(Math.max(1,result.retryAfter||1))});
+}
+
+export function createMemoryRateLimiter({limit=10,windowMs=60000,now=Date.now}={}){
+  if(!Number.isInteger(limit)||limit<1||!Number.isInteger(windowMs)||windowMs<1)throw new Error('Rate limiter requires positive integer limit and windowMs');
+  const windows=new Map();
+  return Object.freeze({
+    async check(key){const time=now(),current=windows.get(key);if(!current||time>=current.resetAt){windows.set(key,{count:1,resetAt:time+windowMs});return{allowed:true,remaining:limit-1,retryAfter:0};}current.count+=1;return{allowed:current.count<=limit,remaining:Math.max(0,limit-current.count),retryAfter:Math.ceil((current.resetAt-time)/1000)};},
+    clear(){windows.clear();}
+  });
+}
+
+export async function checkoutHandler(request,{catalog,config,env={},fetch:requestFetch,onDiagnostic,rateLimiter,rateLimitKey}={}){
   const origin=request.headers.get('origin'),responseCors=cors(origin,config||{});
   if(request.method==='OPTIONS')return new Response(null,{status:204,headers:{...responseCors,'access-control-allow-methods':'POST, OPTIONS','access-control-allow-headers':'content-type'}});
   if(request.method!=='POST')return error('Method not allowed',405,responseCors);
   if(!(request.headers.get('content-type')||'').toLowerCase().startsWith('application/json'))return error('Content-Type must be application/json',415,responseCors);
   if(config.allowed_origins?.length&&origin&&!config.allowed_origins.includes(origin))return error('Origin not allowed',403);
+  const limited=await rateLimit(request,{rateLimiter,rateLimitKey},'checkout');if(limited)return limited;
   const contentLength=Number(request.headers.get('content-length')||0);if(contentLength>16384)return error('Request body too large',413,responseCors);
   const raw=await request.text();if(new TextEncoder().encode(raw).byteLength>16384)return error('Request body too large',413,responseCors);
   let input;try{input=JSON.parse(raw);}catch{return error('Malformed JSON',400,responseCors);}
@@ -41,12 +60,23 @@ export async function checkoutHandler(request,{catalog,config,env={},fetch:reque
   catch(providerFailure){onDiagnostic?.({operation:'checkout',provider:catalog.provider,status:providerFailure.status||null,requestId:providerFailure.requestId||null,code:'provider_request_failed'});return error('Checkout could not be created',502,responseCors);}
 }
 
-export async function checkoutCompletionHandler(request,{provider,config,env={},fetch:requestFetch,onDiagnostic}={}){
+export async function checkoutCompletionHandler(request,{provider,config,env={},fetch:requestFetch,onDiagnostic,rateLimiter,rateLimitKey}={}){
   if(request.method!=='POST')return error('Method not allowed',405);if(!(request.headers.get('content-type')||'').startsWith('application/json'))return error('Content-Type must be application/json',415);
+  const limited=await rateLimit(request,{rateLimiter,rateLimitKey},'checkout-completion');if(limited)return limited;
   const raw=await request.text();if(raw.length>4096)return error('Request body too large',413);let input;try{input=JSON.parse(raw);}catch{return error('Malformed JSON');}
   const reference=String(input.provider_reference||'');if(!reference)return error('provider_reference is required');
   try{return json(await providerFor(provider).completeCheckout(reference,config.providers?.[provider]||config,env,requestContext(config,{fetch:requestFetch,checkoutAttempt:String(input.checkout_attempt||'')})),200);}
   catch(failure){onDiagnostic?.({operation:'checkout_completion',provider,status:failure.status||null,requestId:failure.requestId||null,code:'provider_request_failed'});return error('Checkout could not be completed',502);}
+}
+
+export async function customerPortalHandler(request,{provider,config,env={},fetch:requestFetch,resolveCustomer,onDiagnostic,rateLimiter,rateLimitKey}={}){
+  if(request.method!=='POST')return error('Method not allowed',405);
+  if(typeof resolveCustomer!=='function')return error('Customer portal authentication is not configured',503);
+  const limited=await rateLimit(request,{rateLimiter,rateLimitKey},'customer-portal');if(limited)return limited;
+  let customer;try{customer=await resolveCustomer(request);}catch{return error('Customer authentication failed',401);}
+  if(!customer)return error('Customer authentication required',401);
+  try{return json(await providerFor(provider).createCustomerPortal(config.providers?.[provider]||config,env,requestContext(config,{fetch:requestFetch,...customer})),200);}
+  catch(failure){onDiagnostic?.({operation:'customer_portal',provider,status:failure.status||null,requestId:failure.requestId||null,code:'provider_request_failed'});return error('Customer portal could not be created',502);}
 }
 
 export function createMemoryEventStore(){
@@ -90,4 +120,4 @@ export async function webhookHandler(request,{provider,secret,config={},env={},s
   catch{return error('Verified event could not be delivered',503);}
 }
 
-export function createRuntimeHandlers(options){return Object.freeze({checkout:request=>checkoutHandler(request,options),webhook:request=>webhookHandler(request,options)});}
+export function createRuntimeHandlers(options){return Object.freeze({checkout:request=>checkoutHandler(request,options),completion:request=>checkoutCompletionHandler(request,options),portal:request=>customerPortalHandler(request,options),webhook:request=>webhookHandler(request,options)});}
