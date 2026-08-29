@@ -1,0 +1,25 @@
+name: Release artifacts
+on:
+  push:
+    tags: ['v*']
+jobs:
+  attest:
+    runs-on: ubuntu-latest
+    permissions: { contents: write, id-token: write, attestations: write }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run validate
+      - run: npm pack
+      - run: npm sbom --sbom-format cyclonedx > sbom.cdx.json
+      - id: artifact
+        run: echo "path=$(find . -maxdepth 1 -name '*.tgz' -print -quit)" >> "$GITHUB_OUTPUT"
+      - uses: actions/attest-build-provenance@v2
+        with: { subject-path: "${{ steps.artifact.outputs.path }}" }
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ steps.artifact.outputs.path }}
+            sbom.cdx.json

@@ -1,0 +1,29 @@
+name: Provider sandbox acceptance
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '41 5 * * 3'
+jobs:
+  sandbox:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run test:sandbox
+        env:
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_TEST_PRICE_ID: ${{ secrets.STRIPE_TEST_PRICE_ID }}
+          POLAR_ACCESS_TOKEN: ${{ secrets.POLAR_ACCESS_TOKEN }}
+          POLAR_TEST_PRODUCT_ID: ${{ secrets.POLAR_TEST_PRODUCT_ID }}
+          SQUARE_ACCESS_TOKEN: ${{ secrets.SQUARE_ACCESS_TOKEN }}
+          SQUARE_LOCATION_ID: ${{ secrets.SQUARE_LOCATION_ID }}
+          SQUARE_TEST_CATALOG_OBJECT_ID: ${{ secrets.SQUARE_TEST_CATALOG_OBJECT_ID }}
+          PADDLE_API_KEY: ${{ secrets.PADDLE_API_KEY }}
+          PADDLE_TEST_PRICE_ID: ${{ secrets.PADDLE_TEST_PRICE_ID }}
+          LEMON_SQUEEZY_API_KEY: ${{ secrets.LEMON_SQUEEZY_API_KEY }}
+          LEMON_SQUEEZY_STORE_ID: ${{ secrets.LEMON_SQUEEZY_STORE_ID }}
+          LEMON_SQUEEZY_TEST_VARIANT_ID: ${{ secrets.LEMON_SQUEEZY_TEST_VARIANT_ID }}
+          PAYPAL_CLIENT_ID: ${{ secrets.PAYPAL_CLIENT_ID }}
+          PAYPAL_CLIENT_SECRET: ${{ secrets.PAYPAL_CLIENT_SECRET }}

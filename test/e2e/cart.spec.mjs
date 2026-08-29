@@ -1,0 +1,3 @@
+import {test,expect} from '@playwright/test';
+
+test('cart is capability-aware, persistent, and XSS-safe',async({page})=>{await page.goto('/');await page.locator('[data-commerce-add]').click();await expect(page.locator('kujo-cart h2')).toHaveText('<img src=x onerror="window.pwned=1">');await expect(page.locator('kujo-cart img')).toHaveCount(0);await expect(page.locator('[data-commerce-quantity]')).toHaveValue('1');await page.locator('[data-commerce-quantity]').fill('2');await page.reload();await expect(page.locator('[data-commerce-quantity]')).toHaveValue('2');expect(await page.evaluate(()=>window.pwned)).toBeUndefined();await page.locator('[data-commerce-remove]').click();await expect(page.locator('kujo-cart')).toContainText('Your cart is empty.');});
