@@ -1,32 +1,38 @@
 # Kujo Commerce
 
-Kujo Commerce is a provider-agnostic commerce capability for static sites built
-with Kujo SSG. It composes around the generator: content remains ordinary SSG
-Markdown, Commerce validates product metadata and adds safe catalog/assets, and
-an optional Web-API runtime creates hosted checkouts. SSG contains no commerce
-logic and Commerce stores no payment, customer, order, subscription, or inventory
-database.
+Provider-agnostic commerce for static sites, with first-class Kujo SSG integration.
 
-## Quick start
+Kujo Commerce validates product definitions, emits a trusted public catalog and presentation-neutral browser components, creates provider-hosted checkouts, opens provider-managed customer portals, and verifies/normalizes provider webhooks. Providers remain authoritative for payments, customers, subscriptions, orders, inventory, tax, and fulfillment. Commerce does not collect card data and is not a merchant system of record.
+
+## Adoption levels
+
+1. Catalog only: generate `/_kujo/commerce/catalog.json` and assets.
+2. Hosted Link: ordinary HTTPS purchase links, no JavaScript or runtime required.
+3. Dynamic checkout: browser cart sends only SKU and quantity; a Web-API runtime resolves trusted provider identifiers.
+4. Events: verified webhooks flow through optional deduplication and queue/sink adapters.
+
+Kujo SSG users run:
 
 ```sh
-npm install github:kujolang/commerce#v0.2.0
-git clone --depth 1 --branch v1.0.0 https://github.com/kujolang/ssg vendor/ssg
+npm install @kujolang/commerce
+npx kujo-commerce init --site .
 npx kujo-commerce validate --site .
 npx kujo-commerce build --site . --ssg vendor/ssg/build.kujo
-kujo serve output --port 8080
+npx kujo-commerce doctor --site .
 ```
 
-Create `kujo-commerce.yml`, add `commerce:` metadata to Markdown under
-`content/shop/`, load `<script type="module" src="/assets/commerce/commerce.js"></script>` from the site's layout, and
-place `[data-commerce-cart]` on the cart page. See [products](docs/products.md),
-[providers](docs/providers.md), and [deployment](docs/deployment.md).
+Generic static generators can call `loadConfig()`, `loadProducts()`, `validateStore()`, and `buildStatic()`, then embed `<kujo-buy-button sku="..."></kujo-buy-button>`, `<kujo-cart></kujo-cart>`, or the documented data attributes. Commerce UI has no SiteKit dependency.
 
-## Contracts
+## First-party providers
 
-- catalog: `kujo-commerce/v1` at `/_kujo/commerce/catalog.json`
-- cart: `kujo-cart/v1` stored under `kujo:commerce:cart:v1`
-- normalized events: `kujo-commerce-event/v1`
+Stripe, Polar, PayPal, Square, Paddle, Lemon Squeezy, Link, and Mock are provider adapters behind one conformance-tested contract. Run `kujo-commerce providers --json` for the exact capability declaration. Provider differences are intentional; one-product and quantity restrictions are enforced at build time, in the browser, and again in the runtime.
 
-The browser sends only SKU and quantity. Runtime checkout always resolves the
-authoritative provider identifier from the trusted catalog.
+## Stable contract candidates
+
+- catalog: `kujo-commerce/v1`
+- cart: `kujo-cart/v1`
+- normalized event: `kujo-commerce-event/v1`
+- exact money: integer minor units plus ISO currency and presentation display
+- runtime: Web Platform `Request`, `Response`, `fetch`, and Web Crypto
+
+These remain v0.x contracts. See [architecture](docs/architecture.md), [products and variants](docs/products.md), [providers](docs/providers.md), [generic static integration](docs/generic-static.md), [runtime and webhooks](docs/runtime.md), [deployment](docs/deployment.md), [migration](docs/migration-0.3.md), [production checklist](docs/production-checklist.md), [security policy](SECURITY.md), and [threat model](docs/threat-model.md).

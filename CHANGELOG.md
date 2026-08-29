@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.0 - 2026-08-29
+
+- Replace provider branches with a versioned adapter registry and reusable
+  conformance suite; add PayPal, Square, Paddle, and Lemon Squeezy adapters.
+- Add exact structured money, product/variant/SKU separation, route overrides,
+  generic static generation, Web Components, and expanded JSON Schemas.
+- Harden DOM rendering, redirects, request bounds, provider timeouts/errors,
+  webhook secret handling, deduplication, event sinks, and deferred delivery.
+- Add canonical YAML/JSON config loading, `init`, `doctor`, `providers`, JSON CLI
+  output, portable runtime adapters, browser E2E, schema tests, threat model,
+  production checklist, migration guide, and security policy.
+
 ## 0.2.0 - 2026-08-11
 
 - Add a tested cart state module, complete hosted-checkout options, idempotent

@@ -45,6 +45,7 @@ commerce:
   sku: kujo-commerce-handbook
   type: digital
   price:
+    amount: 2900
     display: "$29.00"
     currency: USD
   providers:
@@ -66,3 +67,24 @@ commerce:
 Types are `digital`, `physical`, `service`, and `subscription`. Validation reports
 the source file, provider, problem, and remediation context. Provider-specific IDs
 remain nested. Secrets are environment-variable names in config, never values.
+
+`amount` is exact minor units and authoritative; `display` is presentation. Currency exponents are ISO-aware rather than assumed to be two. Legacy display-only prices remain a temporary migration path.
+
+For multiple purchasables, add `commerce.id` and variants. Each variant has a stable `id`, `sku`, optional price/provider overrides, availability, quantity policy, and attributes:
+
+```yaml
+commerce:
+  enabled: true
+  id: developer-tee
+  type: physical
+  price: { amount: 3200, currency: USD, display: "$32.00" }
+  providers: { stripe: { price_id: price_default } }
+  variants:
+    - id: black-medium
+      name: Black / Medium
+      sku: tee-black-m
+      attributes: { color: black, size: M }
+      providers: { stripe: { price_id: price_black_m } }
+```
+
+Use `commerce.url` when the generator route is not `/shop/<filename>/`. The SSG remains authoritative for routing.

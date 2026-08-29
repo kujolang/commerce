@@ -6,8 +6,11 @@ discounts, tax, shipping price, or secrets. Checkout is POST-only JSON, size and
 quantity bounded, optional origin-restricted, and returns generic production
 errors. Provider errors and secrets are not logged.
 
-Stripe and Polar signatures are verified against the raw webhook body before
-parsing. Commerce stores no cards, payment data, passwords, users, customers,
+All webhook-capable adapters verify the provider's signature contract against
+the raw body before parsing. Commerce stores no cards, payment data, passwords, users, customers,
 orders, subscriptions, inventory, or other authoritative state. Providers own
 that state. Scan tracked/generated files and Git history before releases. Rotate
 any credential ever committed, even if later deleted.
+
+See the repository `SECURITY.md` and threat model for supported versions,
+disclosure, deduplication, queues, SSRF, rate limits, and deployment requirements.
