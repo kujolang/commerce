@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.0 - 2026-08-29
+
+- Freeze the v1 wire contracts and publish the post-1.0 compatibility and
+  deprecation policy.
+- Add authenticated customer-portal and PayPal return/capture HTTP flows plus
+  provider-wide portal coverage.
+- Add pluggable checkout/completion/portal rate limiting and runtime adapter
+  contract tests for Cloudflare, Vercel, Netlify, and Node.
+- Expand browser coverage to Chromium, Firefox, and WebKit with keyboard,
+  status/alert, variant, failure, portal, and completion exercises.
+
 ## 0.3.0 - 2026-08-29
 
 - Replace provider branches with a versioned adapter registry and reusable

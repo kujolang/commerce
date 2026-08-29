@@ -27,7 +27,7 @@ Generic static generators can call `loadConfig()`, `loadProducts()`, `validateSt
 
 Stripe, Polar, PayPal, Square, Paddle, Lemon Squeezy, Link, and Mock are provider adapters behind one conformance-tested contract. Run `kujo-commerce providers --json` for the exact capability declaration. Provider differences are intentional; one-product and quantity restrictions are enforced at build time, in the browser, and again in the runtime.
 
-## Stable contract candidates
+## Stable v1 contracts
 
 - catalog: `kujo-commerce/v1`
 - cart: `kujo-cart/v1`
@@ -35,4 +35,10 @@ Stripe, Polar, PayPal, Square, Paddle, Lemon Squeezy, Link, and Mock are provide
 - exact money: integer minor units plus ISO currency and presentation display
 - runtime: Web Platform `Request`, `Response`, `fetch`, and Web Crypto
 
-These remain v0.x contracts. See [architecture](docs/architecture.md), [products and variants](docs/products.md), [providers](docs/providers.md), [generic static integration](docs/generic-static.md), [runtime and webhooks](docs/runtime.md), [deployment](docs/deployment.md), [migration](docs/migration-0.3.md), [production checklist](docs/production-checklist.md), [security policy](SECURITY.md), and [threat model](docs/threat-model.md).
+The wire formats are frozen for v1 while the package remains pre-1.0 for final
+provider sandbox evidence. See the [compatibility and deprecation policy](docs/compatibility.md),
+[architecture](docs/architecture.md), [products and variants](docs/products.md),
+[providers](docs/providers.md), [generic static integration](docs/generic-static.md),
+[runtime and webhooks](docs/runtime.md), [deployment](docs/deployment.md),
+[production checklist](docs/production-checklist.md), [security policy](SECURITY.md),
+and [threat model](docs/threat-model.md).

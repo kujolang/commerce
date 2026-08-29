@@ -16,6 +16,25 @@ infrastructure rate limit, a 10-second-or-shorter provider timeout, and structur
 diagnostics. Never automatically retry a checkout create/capture unless the
 provider operation uses the supplied idempotency key.
 
+## Runtime verification matrix
+
+| Host | Entry point | Request model | Rate-limit placement |
+| --- | --- | --- | --- |
+| Cloudflare Pages/Workers | `cloudflareCheckout`, `cloudflareCheckoutCompletion`, `cloudflareCustomerPortal`, `cloudflareWebhook` | Web `Request` plus `env` and `waitUntil` | WAF rate-limiting rule or a Durable Object binding |
+| Vercel Functions | `vercelHandler(coreHandler)` | Node request/response converted to Web types | WAF rate-limit rule or a shared external limiter |
+| Netlify Functions | `netlifyHandler(coreHandler)` | Web `Request`/`Response` | Netlify rate-limiting rule or a shared external limiter |
+| Node | `toWebRequest` and `sendWebResponse` | Node HTTP bridge | Reverse proxy or a shared external limiter |
+
+All four shapes run in `test/runtime-adapters.test.mjs`. The optional
+`createMemoryRateLimiter` is for tests and single-process demos only; production
+deployments need a host-level or shared atomic limiter. Pass that limiter as
+`rateLimiter` and use a host-authored client key via `rateLimitKey`.
+
+The customer-portal handler requires `resolveCustomer(request)`. It never trusts
+a customer ID from the request body. PayPal returns must send the provider's
+`token` to `POST /_kujo/commerce/checkout/complete`; the browser component does
+this automatically on a page containing `[data-commerce-complete]`.
+
 Load the browser entrypoint as an ES module so its versioned cart-state helper is
 resolved beside it:
 

@@ -15,3 +15,7 @@
 - [ ] Tax, shipping, discounts, inventory, and Merchant-of-Record responsibilities were reviewed with the provider.
 - [ ] Security headers, secret scanning, dependency review, and host egress policy are enabled.
 - [ ] A sandbox transaction completed end-to-end before live mode was enabled.
+
+Mock deployments may mark the checkout, cancel, return, portal, browser matrix,
+runtime adapter, and accessibility exercises complete. They do not satisfy the
+credentialed sandbox, durable webhook store/queue, or live-mode gates.
