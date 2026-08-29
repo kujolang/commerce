@@ -1,2 +1,2 @@
 import {defineConfig} from '@playwright/test';
-export default defineConfig({testDir:'test/e2e',timeout:15000,use:{baseURL:'http://127.0.0.1:4178',headless:true},webServer:{command:'node test/e2e/server.mjs',url:'http://127.0.0.1:4178',reuseExistingServer:false,timeout:10000},projects:[{name:'chromium',use:{browserName:'chromium'}}]});
+export default defineConfig({testDir:'test/e2e',timeout:15000,use:{baseURL:'http://127.0.0.1:4178',headless:true},webServer:{command:'node test/e2e/server.mjs',url:'http://127.0.0.1:4178',reuseExistingServer:false,timeout:10000},projects:[{name:'chromium',use:{browserName:'chromium'}},{name:'firefox',use:{browserName:'firefox'}},{name:'webkit',use:{browserName:'webkit'}}]});
