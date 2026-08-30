@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Kujo Commerce · Static Mode</title>
+  <meta name="description" content="A zero-runtime static commerce example using provider-hosted checkout links.">
+  <style>
+    :root{color-scheme:dark;font:18px/1.55 system-ui,sans-serif;background:#0b0b0b;color:#f5f5f5}body{max-width:64rem;margin:auto;padding:4rem 1.25rem}header{max-width:44rem;margin-bottom:3rem}.eyebrow{color:#9cff57;text-transform:uppercase;letter-spacing:.1em}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(16rem,1fr));gap:1rem}.card{border:1px solid #3a3a3a;padding:1.5rem;background:#141414}.price{font-size:1.4rem}.button{display:inline-block;padding:.7rem 1rem;background:#9cff57;color:#0b0b0b;font-weight:700;text-decoration:none}.note{margin-top:3rem;color:#b8b8b8}
+  </style>
+</head>
+<body>
+  <header><p class="eyebrow">Zero-runtime example</p><h1>Static commerce with hosted checkout links</h1><p>This page is only HTML and CSS. Its purchase links would normally point to checkouts created in Stripe, PayPal, Square, Paddle, Lemon Squeezy, Polar, or another provider.</p></header>
+  <main class="grid">
+    <article class="card"><h2>Static Commerce Handbook</h2><p>Example digital product.</p><p class="price">$29.00</p><a class="button" href="https://example.com/?product=static-commerce-handbook">Hosted checkout</a></article>
+    <article class="card"><h2>Architecture Review</h2><p>Example service product.</p><p class="price">$250.00</p><a class="button" href="https://example.com/?product=architecture-review">Hosted checkout</a></article>
+  </main>
+  <p class="note">Demonstration only. The links intentionally lead to example.com and collect no payment. The merchant site uses no server resources.</p>
+</body>
+</html>

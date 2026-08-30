@@ -21,6 +21,12 @@ npx kujo-commerce build --site . --ssg vendor/ssg/build.kujo
 npx kujo-commerce doctor --site .
 ```
 
+`init` defaults to zero-runtime Static Mode. Products use pre-created provider
+checkout links and the result can be hosted on GitHub Pages or any static file
+host. Use `--mode hybrid` only when the site needs dynamic checkout or other
+edge functionality. See [Static Mode](docs/static-mode.md) and the
+[copyable hosted-link example](examples/static-links/README.md).
+
 Generic static generators can call `loadConfig()`, `loadProducts()`, `validateStore()`, and `buildStatic()`, then embed `<kujo-buy-button sku="..."></kujo-buy-button>`, `<kujo-cart></kujo-cart>`, or the documented data attributes. Commerce UI has no SiteKit dependency.
 
 ## First-party providers
@@ -40,5 +46,6 @@ provider sandbox evidence. See the [compatibility and deprecation policy](docs/c
 [architecture](docs/architecture.md), [products and variants](docs/products.md),
 [providers](docs/providers.md), [generic static integration](docs/generic-static.md),
 [runtime and webhooks](docs/runtime.md), [deployment](docs/deployment.md),
+[Static Mode](docs/static-mode.md),
 [production checklist](docs/production-checklist.md), [security policy](SECURITY.md),
 and [threat model](docs/threat-model.md).

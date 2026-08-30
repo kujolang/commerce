@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.4.0 - 2026-08-29
+## 0.4.0 - 2026-08-30
 
 - Freeze the v1 wire contracts and publish the post-1.0 compatibility and
   deprecation policy.
@@ -10,6 +10,8 @@
   contract tests for Cloudflare, Vercel, Netlify, and Node.
 - Expand browser coverage to Chromium, Firefox, and WebKit with keyboard,
   status/alert, variant, failure, portal, and completion exercises.
+- Make zero-runtime Static Mode the default initializer, add a copyable hosted-
+  link storefront, and add a GitHub Pages deployment workflow.
 
 ## 0.3.0 - 2026-08-29
 

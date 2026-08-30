@@ -1,0 +1,10 @@
+enabled: true
+provider: link
+site_url: https://kujolang.github.io/commerce/
+content: content
+output: site
+cart:
+  enabled: false
+  multi_item: false
+providers:
+  link: {}
