@@ -16,17 +16,20 @@
     "./runtime/vercel": "./runtime/vercel.mjs",
     "./runtime/netlify": "./runtime/netlify.mjs",
     "./conformance": "./src/conformance.mjs",
+    "./adapters/postgres": "./adapters/postgres.mjs",
     "./browser/*": "./browser/*",
     "./schemas/*": "./schemas/*"
   },
-  "files": ["bin", "src", "runtime", "browser", "schemas", "docs", "examples", "README.md", "SECURITY.md", "LICENSE"],
+  "files": ["bin", "src", "runtime", "adapters", "browser", "schemas", "docs", "examples", "README.md", "SECURITY.md", "LICENSE"],
   "scripts": {
     "test": "node --test test/*.test.mjs",
     "test:browser": "playwright test",
     "test:sandbox": "node --test test/sandbox/*.sandbox.mjs",
     "test:conformance": "node --test test/provider-conformance.test.mjs test/production-backend.test.mjs",
     "test:fault": "node --test --test-name-pattern='unknown|reclaims|reconciliation|replay' test/production-backend.test.mjs",
+    "test:postgres": "node --test test/postgres.integration.test.mjs",
     "benchmark": "node scripts/benchmark.mjs",
+    "benchmark:postgres": "node scripts/postgres-benchmark.mjs",
     "test:schemas": "node --test test/schema.test.mjs",
     "security:patterns": "node scripts/security-patterns.mjs",
     "validate": "node --check bin/kujo-commerce.mjs && node --check runtime/index.mjs && node --check browser/commerce.js && npm run security:patterns && npm test"
@@ -34,6 +37,6 @@
   "engines": { "node": ">=20" },
   "publishConfig": { "access": "public", "provenance": true },
   "dependencies": { "yaml": "^2.8.1" },
-  "devDependencies": { "@playwright/test": "^1.55.0", "ajv": "^8.17.1", "ajv-formats": "^3.0.1" },
+  "devDependencies": { "@playwright/test": "^1.55.0", "ajv": "^8.17.1", "ajv-formats": "^3.0.1", "pg": "^8.23.0" },
   "license": "MIT"
 }

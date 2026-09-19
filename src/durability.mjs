@@ -22,12 +22,12 @@ export function createMemoryDurableQueue({now=Date.now}={}){
   });
 }
 
-export function createMemoryDeadLetterStore(){const entries=new Map();return Object.freeze({async put(job,error){const value={...clone(job),dead_lettered_at:new Date().toISOString(),last_error:String(error?.message||error)};entries.set(job.id,value);return clone(value);},async get(id){const value=entries.get(id);return value?clone(value):null;},async remove(id){const value=entries.get(id);entries.delete(id);return value?clone(value):null;},async list(){return[...entries.values()].map(value=>clone(value));}});}
+export function createMemoryDeadLetterStore(){const entries=new Map(),key=(id,kind='event_processing')=>`${kind}:${id}`;return Object.freeze({async put(job,error){const value={...clone(job),kind:job.kind||'event_processing',dead_lettered_at:new Date().toISOString(),last_error:String(error?.message||error)};entries.set(key(job.id,value.kind),value);return clone(value);},async get(id,kind='event_processing'){const value=entries.get(key(id,kind));return value?clone(value):null;},async remove(id,kind='event_processing'){const entryKey=key(id,kind),value=entries.get(entryKey);entries.delete(entryKey);return value?clone(value):null;},async list(){return[...entries.values()].map(value=>clone(value));}});}
 
 export function createReplayController({deadLetters,queue,audit=async()=>{}}){return Object.freeze({async replay(id,actor){const job=await deadLetters.get(id);if(!job)throw new Error('dead letter not found');await audit({action:'event.replay',actor,job_id:id,occurred_at:new Date().toISOString()});const replayed=await queue.enqueue(job.payload);await deadLetters.remove(id);return replayed;}});}
 
 export async function processNext({queue,receipts,deadLetters,processor,maxAttempts=5,baseDelayMs=1000}){
   const job=await queue.lease();if(!job)return null;
   try{await processor(job.payload);await receipts?.markProcessed(job.payload.provider_event_id);await queue.complete(job.id);return{status:'processed',job_id:job.id};}
-  catch(error){if(job.attempt>=maxAttempts){await deadLetters.put(job,error);await queue.complete(job.id);await receipts?.release(job.payload.provider_event_id,error);return{status:'dead_lettered',job_id:job.id};}await queue.retry(job.id,{delayMs:Math.min(60000,baseDelayMs*2**(job.attempt-1)),error});return{status:'retrying',job_id:job.id};}
+  catch(error){if(job.attempt>=maxAttempts){await deadLetters.put({...job,kind:'event_processing'},error);await queue.complete(job.id);await receipts?.release(job.payload.provider_event_id,error);return{status:'dead_lettered',job_id:job.id};}await queue.retry(job.id,{delayMs:Math.min(60000,baseDelayMs*2**(job.attempt-1)),error});return{status:'retrying',job_id:job.id};}
 }

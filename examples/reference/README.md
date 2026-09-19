@@ -10,6 +10,6 @@ These examples share Core contracts and require deployment-owned adapters. None 
 6. `event-worker.mjs` processes durable jobs with retry and dead-letter behavior.
 7. `downstream-consumer.mjs` verifies signed provider-neutral outcomes and rejects replay.
 
-Inject transactional implementations for `idempotencyStore`, `receiptStore`, `queue`, `deadLetters`, `replayStore`, and application authentication. Cloudflare can bind D1/Queues or Durable Objects; Netlify and Vercel can bind an external transactional database and queue; Node can bind the same interfaces directly. The business flow is not duplicated per host. Runtime bridges under `runtime/` convert each host's request shape.
+Inject transactional implementations for `idempotencyStore`, atomic webhook `ingress`, `receiptStore`, `queue`, `deadLetters`, `replayStore`, and application authentication. Production receivers should use `ingress.claimAndEnqueue()` so event claiming and enqueueing commit atomically; the separate receipt/queue path remains only for backward compatibility and deterministic fixtures. Cloudflare can bind D1/Queues or Durable Objects; Netlify and Vercel can bind an external transactional database and queue; Node can bind the same interfaces directly. The business flow is not duplicated per host. Runtime bridges under `runtime/` convert each host's request shape; Node callers can pass `maxBodyBytes` to bound request buffering before the Web `Request` is created.
 
 Fictional example values are intentionally nonfunctional. A successful redirect never fulfills an order.

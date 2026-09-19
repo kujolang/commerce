@@ -134,10 +134,10 @@ export async function webhookHandler(request,{provider,secret,config={},env={},s
   catch{return error('Verified event could not be delivered',503);}
 }
 
-export async function durableWebhookHandler(request,{receiptStore,queue,archiveRaw=false,...options}={}){
-  if(!receiptStore||!queue)throw new Error('durable webhook handling requires receiptStore and queue');
+export async function durableWebhookHandler(request,{ingress,receiptStore,queue,archiveRaw=false,...options}={}){
+  if(!ingress&&(!receiptStore||!queue))throw new Error('durable webhook handling requires atomic ingress or receiptStore and queue');
   let captured;const archived=archiveRaw?await request.clone().text():undefined;
-  const sink={async enqueue(event){captured=event;const claim=await receiptStore.claim(event,{raw:archived});if(!claim.claimed)return{duplicate:true};await queue.enqueue(event);await receiptStore.markQueued(event.provider_event_id);return{duplicate:false};}};
+  const sink={async enqueue(event){captured=event;if(ingress)return ingress.claimAndEnqueue(event,{raw:archived});const claim=await receiptStore.claim(event,{raw:archived});if(!claim.claimed)return{duplicate:true};await queue.enqueue(event);await receiptStore.markQueued(event.provider_event_id);return{duplicate:false};}};
   const response=await webhookHandler(request,{...options,executionContext:undefined,store:undefined,sink});if(captured&&response.status===202)return response;return response;
 }
 
