@@ -24,6 +24,9 @@
     "test": "node --test test/*.test.mjs",
     "test:browser": "playwright test",
     "test:sandbox": "node --test test/sandbox/*.sandbox.mjs",
+    "test:conformance": "node --test test/provider-conformance.test.mjs test/production-backend.test.mjs",
+    "test:fault": "node --test --test-name-pattern='unknown|reclaims|reconciliation|replay' test/production-backend.test.mjs",
+    "benchmark": "node scripts/benchmark.mjs",
     "test:schemas": "node --test test/schema.test.mjs",
     "security:patterns": "node scripts/security-patterns.mjs",
     "validate": "node --check bin/kujo-commerce.mjs && node --check runtime/index.mjs && node --check browser/commerce.js && npm run security:patterns && npm test"

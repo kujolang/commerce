@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {providerFor} from '../../src/providers.mjs';
-const item=(provider,settings,type='digital')=>({sku:'kujo-sandbox',title:'Kujo Commerce sandbox acceptance',type,quantity:1,price:{amount:100,currency:'USD',display:'$1.00'},provider:settings});
+const item=(provider,settings,type='digital')=>({sku:'commerce-sandbox',title:'Generic commerce sandbox acceptance',type,quantity:1,price:{amount:100,currency:'USD',display:'$1.00'},provider:settings});
 const checkout={success_url:'https://example.com/success',cancel_url:'https://example.com/cancel',checkout_url:'https://example.com/checkout'};
 const cases=[
   {id:'stripe',required:['STRIPE_SECRET_KEY','STRIPE_TEST_PRICE_ID'],settings:()=>({price_id:process.env.STRIPE_TEST_PRICE_ID}),config:{...checkout,secret_key_env:'STRIPE_SECRET_KEY'}},

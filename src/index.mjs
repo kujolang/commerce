@@ -3,3 +3,10 @@ export { loadProducts, validateStore, buildCatalog, buildSite, buildStatic } fro
 export { CONFIG_FILES, findConfig, loadConfig } from './config.mjs';
 export { currencyExponent, normalizeMoney, validateMoney, moneyDecimal, formatMoney } from './money.mjs';
 export { verifyRemote } from './verify.mjs';
+export { CONTRACT_SCHEMAS, assertStableId, createConsentEvidence, providerReference, downstreamEvent } from './contracts.mjs';
+export { canonicalJson, createOfferRevision, createMemoryRevisionStore } from './revisions.mjs';
+export { OPERATION_STATES, createMemoryIdempotencyStore, executeProviderOperation } from './idempotency.mjs';
+export { createMemoryEventReceiptStore, createMemoryDurableQueue, createMemoryDeadLetterStore, createReplayController, processNext } from './durability.mjs';
+export { signDownstreamEvent, verifyDownstreamEvent, createMemoryReplayStore, createMemoryOutbox, deliverOutbox, createSignedHttpPublisher } from './downstream.mjs';
+export { convergeProviderState, createMemoryReconciliationStore, reconcileObject, reconcilePages } from './reconciliation.mjs';
+export { createOperatorService } from './operator.mjs';

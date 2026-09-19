@@ -7,7 +7,7 @@ import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 import {buildCatalog,loadProducts} from '../src/pipeline.mjs';
 
-const directory=path.resolve('schemas'),names=['money','provider-capabilities','product','variant','catalog','cart','checkout-request','checkout-response','event','config'];
+const directory=path.resolve('schemas'),names=['money','provider-capabilities','product','variant','catalog','cart','checkout-request','checkout-response','event','config','offer-revision','downstream-event'];
 const schemas=Object.fromEntries(await Promise.all(names.map(async name=>[name,JSON.parse(await fs.readFile(path.join(directory,`${name}.schema.json`),'utf8'))])));
 const ajv=new Ajv2020({allErrors:true,strict:false});addFormats(ajv);Object.values(schemas).forEach(schema=>ajv.addSchema(schema));
 

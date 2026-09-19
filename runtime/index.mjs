@@ -1,4 +1,5 @@
 import { providerFor } from '../src/providers.mjs';
+import { executeProviderOperation } from '../src/idempotency.mjs';
 
 const json=(body,status=200,headers={})=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store',...headers}});
 const error=(message,status=400,headers={})=>json({error:message},status,headers);
@@ -7,6 +8,7 @@ const cors=(origin,config)=>origin&&(!config.allowed_origins?.length||config.all
 export async function createCheckout(provider,items,config,env={},context={}){return providerFor(provider).createCheckout(items,config,env,context);}
 export async function completeCheckout(provider,reference,config,env={},context={}){return providerFor(provider).completeCheckout(reference,config,env,context);}
 export async function getCustomerPortal(provider,config,env={},context={}){return providerFor(provider).createCustomerPortal(config,env,context);}
+export async function createSubscription(provider,item,config,env={},context={}){const adapter=providerFor(provider);if(!adapter.capabilities.subscriptions||typeof adapter.createSubscription!=='function')throw new Error(`${provider} does not implement direct subscription enrollment`);return adapter.createSubscription(item,config,env,context);}
 export function normalizeEvent(provider,input){return providerFor(provider).normalizeWebhookEvent(input);}
 export async function verifyStripe(raw,signature,secret,tolerance=300){return providerFor('stripe').verifyWebhook({raw,request:new Request('https://local.test',{headers:{'stripe-signature':signature}}),secret,tolerance});}
 export async function verifyPolar(raw,headers,secret,tolerance=300){return providerFor('polar').verifyWebhook({raw,request:new Request('https://local.test',{headers}),secret,tolerance});}
@@ -79,6 +81,18 @@ export async function customerPortalHandler(request,{provider,config,env={},fetc
   catch(failure){onDiagnostic?.({operation:'customer_portal',provider,status:failure.status||null,requestId:failure.requestId||null,code:'provider_request_failed'});return error('Customer portal could not be created',502);}
 }
 
+export async function subscriptionHandler(request,{catalog,config,env={},fetch:requestFetch,resolveSubscriptionContext,idempotencyStore,onDiagnostic,rateLimiter,rateLimitKey}={}){
+  if(request.method!=='POST')return error('Method not allowed',405);if(!(request.headers.get('content-type')||'').toLowerCase().startsWith('application/json'))return error('Content-Type must be application/json',415);
+  const limited=await rateLimit(request,{rateLimiter,rateLimitKey},'subscription');if(limited)return limited;
+  const raw=await request.text();if(new TextEncoder().encode(raw).byteLength>16384)return error('Request body too large',413);let input;try{input=JSON.parse(raw);}catch{return error('Malformed JSON');}
+  const operationId=String(input.operation_id||''),sku=String(input.sku||'');if(!/^[A-Za-z0-9_-]{1,128}$/.test(operationId)||!sku)return error('operation_id and sku are required');
+  const adapter=providerFor(catalog.provider),product=catalog.products.find(value=>value.sku===sku);if(!adapter.capabilities.subscriptions||typeof adapter.createSubscription!=='function')return error('Configured provider does not support direct subscription enrollment',400);if(!product||product.type!=='subscription'||product.availability!=='available')return error('Unknown or unavailable subscription SKU',400);
+  if(typeof resolveSubscriptionContext!=='function')return error('Subscription authentication is not configured',503);let trusted;try{trusted=await resolveSubscriptionContext(request,{operation_id:operationId,sku});}catch{return error('Subscription authentication failed',401);}if(!trusted?.customerId||!trusted?.consent)return error('Authenticated customer and consent evidence are required',400);
+  const providerConfig={...(config.checkout||{}),...(config.providers?.[catalog.provider]||{})},spec={operation_id:operationId,type:'subscription.create',idempotency_key:`kujo-${operationId}`.slice(0,45),intent:{provider:catalog.provider,sku,offer_revision:product.offer_revision||null,customer_reference:trusted.customerReference||null}};
+  try{const result=await executeProviderOperation(spec,{store:idempotencyStore,mutate:idempotencyKey=>adapter.createSubscription({...product,quantity:1,provider:product.provider},providerConfig,env,requestContext(config,{...trusted,idempotencyKey,fetch:requestFetch})),recover:adapter.recoverSubscription?record=>adapter.recoverSubscription(record,providerConfig,env,requestContext(config,{...trusted,fetch:requestFetch})):undefined});return json(result,201);}
+  catch(failure){onDiagnostic?.({operation:'subscription_create',provider:catalog.provider,requestId:failure.requestId||null,code:failure.code||'provider_request_failed'});return error('Subscription could not be created',502);}
+}
+
 export function createMemoryEventStore(){
   const processed=new Set(),inFlight=new Set();
   return Object.freeze({
@@ -99,7 +113,7 @@ export async function deliverEvent(event,{store,sink,onDiagnostic}={}){
   let claimed=true;
   if(store?.claim)claimed=await store.claim(event.provider_event_id);else if(store?.hasProcessed)claimed=!(await store.hasProcessed(event.provider_event_id));
   if(!claimed)return{duplicate:true};
-  try{if(sink?.enqueue)await sink.enqueue(event);else if(sink?.deliver)await sink.deliver(event);else if(typeof sink==='function')await sink(event);if(store?.markProcessed)await store.markProcessed(event.provider_event_id);return{duplicate:false};}
+  try{let delivery;if(sink?.enqueue)delivery=await sink.enqueue(event);else if(sink?.deliver)delivery=await sink.deliver(event);else if(typeof sink==='function')delivery=await sink(event);if(delivery?.duplicate)return{duplicate:true};if(store?.markProcessed)await store.markProcessed(event.provider_event_id);return{duplicate:false};}
   catch(deliveryFailure){await store?.release?.(event.provider_event_id);onDiagnostic?.({operation:'webhook_delivery',provider:event.provider,eventId:event.provider_event_id,code:'delivery_failed'});throw deliveryFailure;}
 }
 
@@ -120,4 +134,11 @@ export async function webhookHandler(request,{provider,secret,config={},env={},s
   catch{return error('Verified event could not be delivered',503);}
 }
 
-export function createRuntimeHandlers(options){return Object.freeze({checkout:request=>checkoutHandler(request,options),completion:request=>checkoutCompletionHandler(request,options),portal:request=>customerPortalHandler(request,options),webhook:request=>webhookHandler(request,options)});}
+export async function durableWebhookHandler(request,{receiptStore,queue,archiveRaw=false,...options}={}){
+  if(!receiptStore||!queue)throw new Error('durable webhook handling requires receiptStore and queue');
+  let captured;const archived=archiveRaw?await request.clone().text():undefined;
+  const sink={async enqueue(event){captured=event;const claim=await receiptStore.claim(event,{raw:archived});if(!claim.claimed)return{duplicate:true};await queue.enqueue(event);await receiptStore.markQueued(event.provider_event_id);return{duplicate:false};}};
+  const response=await webhookHandler(request,{...options,executionContext:undefined,store:undefined,sink});if(captured&&response.status===202)return response;return response;
+}
+
+export function createRuntimeHandlers(options){return Object.freeze({checkout:request=>checkoutHandler(request,options),subscription:request=>subscriptionHandler(request,options),completion:request=>checkoutCompletionHandler(request,options),portal:request=>customerPortalHandler(request,options),webhook:request=>webhookHandler(request,options),durableWebhook:request=>durableWebhookHandler(request,options)});}
