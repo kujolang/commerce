@@ -1,0 +1,3 @@
+# Subscription lifecycle
+
+Publish an immutable offer revision, authenticate the customer, display application-supplied consent text without preselection, record `PaymentMethodConsent`, and persist the semantic operation before any provider mutation. For Square, reconcile or create exactly one customer, exchange the single-use Web Payments SDK token for a saved card, discard the token, and enroll using the trusted plan-variation mapping. Activation, renewal, failure, recovery, cancellation, pause, and resume are facts from verified webhooks or current provider state—not browser redirects. See [Square](square.md) and [production backend](production-backend.md).

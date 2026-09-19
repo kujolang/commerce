@@ -23,7 +23,10 @@ Netlify adapters. Providers remain authoritative for state. Core has no database
 durable event deduplication and queues are optional interfaces.
 
 Progressive levels are catalog-only, hosted link, dynamic cart/checkout, and
-verified webhook events. Sites adopt only the level they need.
+verified webhook events. Optional layers add durable receipt/queue processing,
+subscription lifecycle operations, provider reconciliation, and signed downstream
+facts. Sites adopt only the level they need; importing Core does not initialize
+storage or contact a provider.
 
 Provider adapters are the only layer that understands provider API shapes. Core
 selects the adapter, validates declared capabilities, and invokes its contract.

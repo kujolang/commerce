@@ -1,0 +1,3 @@
+# Migration to the production-backend contracts
+
+Existing v1 catalogs, carts, checkout requests/responses, browser elements, runtime exports, and normalized events remain valid. New catalog fields and capability flags are additive. Static and hosted-link users need no persistence or configuration changes. Square subscription users add `cadence: monthly`, `providers.square.plan_variation_id`, authenticated customer/card resolution, consent evidence, and a durable idempotency store. Pin `api_version: 2026-09-16` if setting it explicitly. Custom provider adapters must add the new capability booleans and keep unsupported values false.

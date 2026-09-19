@@ -1,0 +1,3 @@
+# Persistence adapter guide
+
+Production adapters must provide atomic semantic-operation creation, compare-and-set state transitions, atomic provider-event claims, reclaimable leases, durable queue enqueue before acknowledgement, retry scheduling, dead letters, replay, reconciliation cursors, and transactional outbox records. Store IDs, state, safe provider references, and redacted diagnostics. Do not store raw card data or single-use payment tokens. Raw webhook payloads require an explicit encrypted archive and retention policy. Run `npm run test:conformance` and `npm run test:fault` against custom implementations.

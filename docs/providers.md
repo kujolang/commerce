@@ -7,7 +7,7 @@ Adapters declare capabilities and own configuration/product validation, public s
 | Stripe | Checkout Session or explicit hosted link | yes | yes | yes | yes | yes | yes | credential-gated |
 | Polar | Checkout Session or explicit hosted link | no | no | yes | no | yes | yes | credential-gated |
 | PayPal | Orders/Billing approval plus server capture | one-time | yes | one plan | yes | no | yes | credential-gated |
-| Square | Payment Link backed by catalog order | yes | yes | no in this adapter | yes | no | yes | credential-gated |
+| Square | Payment Link; direct Subscriptions API enrollment | one-time | yes | yes | yes | no | yes | credential-gated |
 | Paddle | Transaction hosted checkout | yes | yes | yes | no | yes | yes | credential-gated |
 | Lemon Squeezy | One-variant checkout | no | no | yes | no | verified URL | yes | credential-gated |
 | Link | Configured hosted URL | no | no | delegated | delegated | no | no | HEAD check |
@@ -25,3 +25,5 @@ Current first-party references:
 - [Square CreatePaymentLink](https://developer.squareup.com/reference/square/checkout-api/create-payment-link) and [signature validation](https://developer.squareup.com/docs/webhooks/step3validate)
 - [Paddle transactions](https://developer.paddle.com/api-reference/transactions/create-transaction) and [signature verification](https://developer.paddle.com/webhooks/signature-verification)
 - [Lemon Squeezy checkouts](https://docs.lemonsqueezy.com/api/checkouts/create-checkout) and [signed webhooks](https://docs.lemonsqueezy.com/guides/developer-guide/webhooks)
+
+The capability document also distinguishes saved payment methods, trials, multiple phases, static versus relative recurring prices, plan changes, pause/resume, cancellation timing, disputes, provider-event recovery, and direct reconciliation. False means unsupported or not implemented; it never means “approximately supported.” Square currently declares direct subscription reconciliation and scheduled cancellation, but not immediate cancellation.

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Add optional v1 contracts for immutable offer revisions, semantic provider operations, consent evidence, reconciliation, signed downstream events, and delivery attempts.
+- Add deterministic durability, outbox, dead-letter, replay, reconciliation, operator, and fault-injection reference implementations without adding static-mode dependencies.
+- Add Square customer lookup/creation, saved-card workflow, direct subscription enrollment/retrieval, scheduled cancellation, pause/resume, subscription reconciliation, expanded events, strict endpoint selection, and API version `2026-09-16`.
+- Expand provider capabilities without changing existing v1 meanings, and add production-backend/reference-deployment guidance and bounded benchmarks.
+
 ## 0.4.0 - 2026-08-30
 
 - Freeze the v1 wire contracts and publish the post-1.0 compatibility and
