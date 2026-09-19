@@ -1,0 +1,82 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: commerce
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: commerce
+    volumes:
+      - commerce-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U commerce -d commerce"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+    restart: unless-stopped
+  migrate:
+    build:
+      context: ../..
+      dockerfile: examples/postgres-production/Dockerfile
+    command: ["node","examples/postgres-production/migrate.mjs"]
+    environment: &commerce-environment
+      PGHOST: postgres
+      PGPORT: 5432
+      PGUSER: commerce
+      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      PGDATABASE: commerce
+      COMMERCE_OPERATOR_TOKEN: ${COMMERCE_OPERATOR_TOKEN:?set COMMERCE_OPERATOR_TOKEN}
+      COMMERCE_WEBHOOK_SECRET: ${COMMERCE_WEBHOOK_SECRET:?set COMMERCE_WEBHOOK_SECRET}
+      COMMERCE_SIGNING_KEY_ID: ${COMMERCE_SIGNING_KEY_ID:?set COMMERCE_SIGNING_KEY_ID}
+      COMMERCE_SIGNING_SECRET: ${COMMERCE_SIGNING_SECRET:?set COMMERCE_SIGNING_SECRET}
+      COMMERCE_PROVIDER: ${COMMERCE_PROVIDER:-mock}
+      COMMERCE_PUBLIC_ORIGIN: http://receiver:8787
+      COMMERCE_CONSUMER_ORIGIN: http://consumer:8788
+      COMMERCE_CONSUMER_URL: http://consumer:8788/events
+      COMMERCE_ALLOW_HTTP_CONSUMER: "true"
+      SQUARE_ACCESS_TOKEN: ${SQUARE_ACCESS_TOKEN:-}
+      SQUARE_LOCATION_ID: ${SQUARE_LOCATION_ID:-}
+      SQUARE_NOTIFICATION_URL: ${SQUARE_NOTIFICATION_URL:-}
+      SQUARE_API_BASE: ${SQUARE_API_BASE:-https://connect.squareupsandbox.com}
+    depends_on:
+      postgres:
+        condition: service_healthy
+  receiver:
+    build:
+      context: ../..
+      dockerfile: examples/postgres-production/Dockerfile
+    environment:
+      <<: *commerce-environment
+      PORT: 8787
+    command: ["node","examples/postgres-production/receiver.mjs"]
+    ports: ["127.0.0.1:${COMMERCE_RECEIVER_PORT:-18787}:8787"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+  worker:
+    build:
+      context: ../..
+      dockerfile: examples/postgres-production/Dockerfile
+    environment: *commerce-environment
+    command: ["node","examples/postgres-production/worker.mjs"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      consumer:
+        condition: service_started
+    restart: unless-stopped
+  consumer:
+    build:
+      context: ../..
+      dockerfile: examples/postgres-production/Dockerfile
+    environment:
+      <<: *commerce-environment
+      PORT: 8788
+    command: ["node","examples/postgres-production/consumer.mjs"]
+    ports: ["127.0.0.1:${COMMERCE_CONSUMER_PORT:-18788}:8788"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+volumes:
+  commerce-postgres:

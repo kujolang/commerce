@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add an optional PostgreSQL 16 reference adapter with migrations, atomic webhook ingress, semantic operations, queue leases, dead letters, reconciliation cursors, transactional outbox, replay claims, consumer deduplication, and operator audit storage.
+- Add a containerized receiver/worker/signed-consumer staging topology, local smoke test, and provider/infrastructure promotion runbook.
+- Add bounded Node request ingestion, PostgreSQL load checks, namespaced dead letters, and a credential-gated Square subscription lifecycle Sandbox test.
 - Add optional v1 contracts for immutable offer revisions, semantic provider operations, consent evidence, reconciliation, signed downstream events, and delivery attempts.
 - Add deterministic durability, outbox, dead-letter, replay, reconciliation, operator, and fault-injection reference implementations without adding static-mode dependencies.
 - Add Square customer lookup/creation, saved-card workflow, direct subscription enrollment/retrieval, scheduled cancellation, pause/resume, subscription reconciliation, expanded events, strict endpoint selection, and API version `2026-09-16`.

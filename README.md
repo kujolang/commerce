@@ -56,7 +56,8 @@ provider sandbox evidence. See the [compatibility and deprecation policy](docs/c
 [subscription lifecycle](docs/subscriptions.md), [reconciliation](docs/reconciliation.md),
 [signed downstream events](docs/downstream-events.md), [persistence adapters](docs/persistence-adapters.md),
 [provider authoring](docs/provider-authoring.md), [operator runbook](docs/operator-runbook.md),
-[failure recovery](docs/failure-recovery.md), [migration](docs/migration-0.5.md),
+[failure recovery](docs/failure-recovery.md), [staging promotion](docs/staging-runbook.md),
+[PostgreSQL topology](examples/postgres-production/README.md), [migration](docs/migration-0.5.md),
 [Static Mode](docs/static-mode.md),
 [production checklist](docs/production-checklist.md), [security policy](SECURITY.md),
 and [threat model](docs/threat-model.md).
