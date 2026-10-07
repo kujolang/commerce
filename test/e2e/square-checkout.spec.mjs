@@ -42,3 +42,19 @@ test('confirmed failed payment can explicitly start a new attempt',async({page})
   let restarts=0;await page.route('**/restart',route=>{restarts++;return route.fulfill({json:{id:'order'}});});
   await page.evaluate(()=>window.checkout.restart());await expect(page.locator('button')).toBeEnabled();expect(restarts).toBe(1);
 });
+
+test('destroy during tokenization prevents a later payment submission',async({page})=>{
+  const submissions=await mount(page);
+  await page.evaluate(async()=>{document.querySelector('form').requestSubmit();await window.checkout.destroy();await new Promise(resolve=>setTimeout(resolve,150));});
+  expect(submissions()).toBe(0);await expect(page.locator('button')).toBeDisabled();
+});
+
+test('restart serializes against duplicate restart and new submit',async({page})=>{
+  const submissions=await mount(page,{fail:true});await page.locator('button').click();await expect(page.locator('#status')).toContainText('needs confirmation');
+  await page.route('**/status?*',route=>route.fulfill({json:{payments:[{status:'failed'}]}}));
+  let release;const response=new Promise(resolve=>{release=resolve;});let restarts=0;
+  await page.route('**/restart',async route=>{restarts++;await response;await route.fulfill({json:{id:'order'}});});
+  await page.evaluate(()=>{window.restarting=window.checkout.restart();});await expect.poll(()=>restarts).toBe(1);
+  const error=await page.evaluate(async()=>{document.querySelector('form').requestSubmit();try{await window.checkout.restart();}catch(error){return error.message;}});
+  expect(error).toBe('Checkout restart unavailable');expect(submissions()).toBe(1);expect(restarts).toBe(1);release();await page.evaluate(()=>window.restarting);await expect(page.locator('button')).toBeEnabled();
+});

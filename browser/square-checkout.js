@@ -21,13 +21,22 @@ export async function mountSquareCheckout({form,cardTarget,button,status,session
     let sent=false;
     try{
       const result=await card.tokenize({amount:details.amount,currencyCode:details.currency,intent:'CHARGE',customerInitiated:true,sellerKeyedIn:false});
+      if(destroyed)return;
       if(result.status!=='OK'||!result.token){announce('Card verification did not complete. Please try again.');return;}
       sent=true;locked=true;
       const paid=await json(payUrl,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({order_id:details.session_id,source_token:result.token})});
       announce(paid.status==='completed'?'Payment received.':'Payment is being confirmed. Do not submit another payment.');
     }catch(error){announce(sent?'Payment status needs confirmation. Do not submit another payment.':'Secure card entry is unavailable. Please try again.');}
-    finally{busy=false;button.disabled=locked;}
+    finally{busy=false;button.disabled=locked||destroyed;}
   }
   form.addEventListener('submit',submit);if(locked)await refresh();
-  return {refresh,async restart(){if(!restartUrl||busy||destroyed)throw new Error('Checkout restart unavailable');const state=await refresh();if(!state.payments.length||state.payments.some(payment=>!['failed','canceled'].includes(payment.status)))throw new Error('Payment status needs confirmation');await json(restartUrl,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({order_id:details.session_id})});locked=false;button.disabled=false;announce('Ready for a new payment attempt.');},async destroy(){destroyed=true;form.removeEventListener('submit',submit);await card.destroy();}};
+  return {refresh,async restart(){
+    if(!restartUrl||busy||destroyed)throw new Error('Checkout restart unavailable');busy=true;button.disabled=true;
+    try{
+      const state=await refresh();if(destroyed)throw new Error('Checkout restart unavailable');
+      if(!state.payments.length||state.payments.some(payment=>!['failed','canceled'].includes(payment.status)))throw new Error('Payment status needs confirmation');
+      await json(restartUrl,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({order_id:details.session_id})});
+      if(destroyed)return;locked=false;announce('Ready for a new payment attempt.');
+    }finally{busy=false;button.disabled=locked||destroyed;}
+  },async destroy(){if(destroyed)return;destroyed=true;locked=true;button.disabled=true;form.removeEventListener('submit',submit);await card.destroy();}};
 }
