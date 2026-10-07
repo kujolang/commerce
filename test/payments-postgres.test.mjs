@@ -32,3 +32,20 @@ test('owned PostgreSQL atomic transitions, refund races, scope isolation and sou
     const recovered=await service.reconcile({orderId:'crash-order',attemptId:'crash-attempt'});assert.equal(recovered.status,'completed');assert.equal(fixture.payments.size,2);
   }finally{await pool.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);await pool.end();}
 });
+
+test('owned PostgreSQL no-op reconciliation avoids tuple writes and pending delivery uses its partial index',{skip:!connectionString},async()=>{
+  const pool=new pg.Pool({connectionString}),schema=`owned_perf_${process.pid}_${Date.now()}`,store=createPostgresPaymentStore({pool,schema});
+  const {scopeKey}=await import('../src/payments/model.mjs');const partition=scopeKey(scope);
+  try{
+    await store.migrate();await store.transact(scope,'order',tx=>tx.put({id:'order',version:1}));
+    const tuple=async()=>(await pool.query(`SELECT xmin::text AS revision FROM ${schema}.owned_orders WHERE scope=$1 AND id='order'`,[partition])).rows[0].revision;
+    const original=await tuple();for(let count=0;count<20;count++)await store.transact(scope,'order',tx=>tx.order.version);
+    assert.equal(await tuple(),original,'read/no-change transactions must not create new tuples');
+    await store.transact(scope,'order',tx=>{tx.order.version++;});assert.notEqual(await tuple(),original);
+    await pool.query(`INSERT INTO ${schema}.owned_outbox(scope,event_id,event,state) SELECT $1,'seed-'||i,jsonb_build_object('event_id','seed-'||i),CASE WHEN i<=10 THEN 'pending' ELSE 'delivered' END FROM generate_series(1,5000) i`,[partition]);
+    await pool.query(`ANALYZE ${schema}.owned_outbox`);
+    const plan=(await pool.query(`EXPLAIN (ANALYZE,BUFFERS,FORMAT JSON) SELECT event,state FROM ${schema}.owned_outbox WHERE scope=$1 AND state='pending' ORDER BY created_at,event_id LIMIT 5`,[partition])).rows[0]['QUERY PLAN'];
+    assert.match(JSON.stringify(plan),/owned_outbox_pending/);assert.equal((await store.outbox(scope,{pending:true,limit:5})).length,5);
+    assert.equal((await store.outbox({...scope,merchant_id:'other'},{pending:true})).length,0);
+  }finally{await pool.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);await pool.end();}
+});

@@ -19,7 +19,8 @@ CREATE INDEX IF NOT EXISTS owned_inbox_ready ON ${s}.owned_inbox(scope,state,ava
 CREATE TABLE IF NOT EXISTS ${s}.owned_outbox (
  scope text NOT NULL, event_id text NOT NULL, event jsonb NOT NULL,
  state text NOT NULL DEFAULT 'pending' CHECK(state IN ('pending','delivered')),
- created_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(scope,event_id));`;
+ created_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(scope,event_id));
+CREATE INDEX IF NOT EXISTS owned_outbox_pending ON ${s}.owned_outbox(scope,created_at,event_id) WHERE state='pending';`;
 }
 export function createPostgresPaymentStore({pool,schema='commerce'}={}){
   const s=schemaName(schema);if(!pool?.connect)throw new Error('PostgreSQL pool required');
@@ -32,11 +33,13 @@ export function createPostgresPaymentStore({pool,schema='commerce'}={}){
       // extra serialization; all reads/writes still compare exact scope and id.
       await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[JSON.stringify([partition,id])]);
       const row=(await client.query(`SELECT document FROM ${s}.owned_orders WHERE scope=$1 AND id=$2 FOR UPDATE`,[partition,id])).rows[0];
+      const original=row?JSON.stringify(row.document):null;
       const tx={order:row?.document||null,put:value=>{tx.order=value;},emit:async event=>{await client.query(`INSERT INTO ${s}.owned_outbox(scope,event_id,event) VALUES($1,$2,$3) ON CONFLICT DO NOTHING`,[partition,event.event_id,event]);},complete:async receipt=>{
         const result=await client.query(`UPDATE ${s}.owned_inbox SET state='processed' WHERE scope=$1 AND id=$2 AND token=$3 AND generation=$4 AND state='leased' RETURNING id`,[partition,receipt.id,receipt.token,receipt.generation]);if(!result.rowCount)throw fail('stale_receipt');
       }};
       const result=await work(tx);
-      if(tx.order)await client.query(`INSERT INTO ${s}.owned_orders(scope,id,document) VALUES($1,$2,$3) ON CONFLICT(scope,id) DO UPDATE SET document=EXCLUDED.document,updated_at=now()`,[partition,id,tx.order]);
+      const document=tx.order?JSON.stringify(tx.order):null;
+      if(document!==null&&document!==original)await client.query(`INSERT INTO ${s}.owned_orders(scope,id,document) VALUES($1,$2,$3) ON CONFLICT(scope,id) DO UPDATE SET document=EXCLUDED.document,updated_at=now()`,[partition,id,document]);
       return result;
     });},
     async get(scope,id){return (await pool.query(`SELECT document FROM ${s}.owned_orders WHERE scope=$1 AND id=$2`,[scopeKey(scope),id])).rows[0]?.document||null;},
@@ -53,7 +56,7 @@ export function createPostgresPaymentStore({pool,schema='commerce'}={}){
     async retry(scope,receipt,{maxAttempts=5,delayMs=1000}={}){const result=await pool.query(`UPDATE ${s}.owned_inbox SET state=CASE WHEN attempts >= $5 THEN 'dead' ELSE 'ready' END,available_at=now()+$6*interval '1 millisecond' WHERE scope=$1 AND id=$2 AND token=$3 AND generation=$4 AND state='leased' RETURNING id`,[scopeKey(scope),receipt.id,receipt.token,receipt.generation,maxAttempts,Math.max(0,delayMs)]);if(!result.rowCount)throw fail('stale_receipt');},
     async replay(scope,id,actor){if(!actor)throw fail('operator_required');return transaction(async client=>{const partition=scopeKey(scope),row=(await client.query(`UPDATE ${s}.owned_inbox SET state='ready',attempts=0,generation=generation+1,available_at=now() WHERE scope=$1 AND id=$2 AND state='dead' RETURNING generation`,[partition,id])).rows[0];if(!row)throw fail('receipt_not_dead');const event={schema:'kujo-commerce-downstream-event/v1',schema_version:1,event_id:crypto.randomUUID(),aggregate_id:id,aggregate_version:row.generation,type:'receipt.replayed',occurred_at:new Date().toISOString(),data:{scope,actor}};await client.query(`INSERT INTO ${s}.owned_outbox(scope,event_id,event) VALUES($1,$2,$3)`,[partition,event.event_id,event]);return {id,state:'ready'};});},
     async inbox(scope){return (await pool.query(`SELECT * FROM ${s}.owned_inbox WHERE scope=$1 ORDER BY id`,[scopeKey(scope)])).rows.map(receiptRow);},
-    async outbox(scope,{pending=false,limit=1000}={}){return (await pool.query(`SELECT event,state FROM ${s}.owned_outbox WHERE scope=$1 AND ($2::boolean=false OR state='pending') ORDER BY created_at,event_id LIMIT $3`,[scopeKey(scope),pending,Math.min(1000,Math.max(1,limit))])).rows;},
+    async outbox(scope,{pending=false,limit=1000}={}){return (await pool.query(`SELECT event,state FROM ${s}.owned_outbox WHERE scope=$1${pending?" AND state='pending'":''} ORDER BY created_at,event_id LIMIT $2`,[scopeKey(scope),Math.min(1000,Math.max(1,limit))])).rows;},
     async delivered(scope,id){await pool.query(`UPDATE ${s}.owned_outbox SET state='delivered' WHERE scope=$1 AND event_id=$2`,[scopeKey(scope),id]);}
   });
 }
