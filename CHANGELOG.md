@@ -86,3 +86,4 @@
 - Bound recurring consent to approved money/revision/plan and checked static monthly provider pricing; tightened invoice ownership, collection route exclusion, terminal cancellation audit and unknown-payment cancellation rules.
 - Resolve OAuth credentials per request, bound location discovery time/body limits, reject invalid token expiry, and preserve scoped encrypted refresh behavior.
 - Added explicit checkout restart after confirmed failure/cancellation, generated-record schema checks, operator/worker examples and credential-gated Sandbox payment tests. All legacy provider keys and v1 tables remain unchanged.
+- Updated the development-only `fast-uri` lockfile entry from 3.1.6 to 3.1.8 to clear the inherited dependency-audit failures; `npm audit` reports zero vulnerabilities.

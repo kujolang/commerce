@@ -45,3 +45,4 @@ Saved-card consent requires a separate affirmative storage choice. Recurring con
 - Sandbox gate: ten tests skipped because no live credentials/opt-in were present; zero real payment requests were made.
 - Package dry run: optional source, schemas, runtime and deployment examples included. No new runtime dependency.
 - CI now includes a PostgreSQL 16 service gate; local PostgreSQL evidence is version 14.20 and must not be relabeled as 16.
+- Final local browser run: 30 passed. Remote PostgreSQL 16 gate passed. The first remote run exposed an inherited development dependency audit failure; `fast-uri` was patched from 3.1.6 to 3.1.8 and local audit/148-test validation passed again.
