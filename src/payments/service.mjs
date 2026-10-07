@@ -34,19 +34,22 @@ export function createPaymentService({store,provider,scope:inputScope,config={},
     });
   }
   async function uncertain(orderId,operation,ticket,error){
-    await store.transact(scope,orderId,async tx=>{
+    return store.transact(scope,orderId,async tx=>{
       const current=required(tx).operations[operationKey(operation.type,operation.id)];assertFence(current,ticket);
-      current.state=error.definitive===true?'failed':'unknown';current.error_code=error.code||'provider_outcome_unknown';delete current.token;delete current.lease_until;
       const record=current.type==='refund.create'?tx.order.refunds[current.local_id]:current.type==='payment.create'?tx.order.payments[current.local_id]:null;
-      if(record&&error.definitive===true)record.status='failed';
-      await audit(tx,`operation.${current.state}`,{operation_id:current.id,operation_type:current.type,code:current.error_code});
+      // A concurrent verified observation outranks a late request failure. Do
+      // not release a refund reservation or downgrade completed money movement.
+      const definitive=error.definitive===true&&!record?.provider_id;
+      current.state=definitive?'failed':'unknown';current.error_code=error.code||'provider_outcome_unknown';delete current.token;delete current.lease_until;
+      if(record&&definitive)record.status='failed';
+      await audit(tx,`operation.${current.state}`,{operation_id:current.id,operation_type:current.type,code:current.error_code});return current.state;
     });
   }
   async function execute(prepared,mutate,project){
     if(prepared.cached)return prepared.operation.result;
     const {orderId,operation,ticket}=prepared;
     try{const remote=await mutate(operation),{result,observation}=project(remote);return await finish(orderId,operation,ticket,result,observation);}
-    catch(error){try{await uncertain(orderId,operation,ticket,error);}catch(failure){if(failure.code!=='stale_operation')throw failure;}throw error;}
+    catch(error){let state;try{state=await uncertain(orderId,operation,ticket,error);}catch(failure){if(failure.code!=='stale_operation')throw failure;}if(state==='unknown'&&error.definitive===true)throw fail('outcome_unknown');throw error;}
   }
   const api={
     scope,

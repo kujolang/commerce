@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import {createTokenVault,createMemoryConnectionStore,createSquareConnections,connectionKey} from '../src/connections/index.mjs';
 const binding={merchant_id:'merchant',connection_id:'square',environment:'sandbox'};
 function setup(){
-  const store=createMemoryConnectionStore(),vault=createTokenVault({keys:{test:new Uint8Array(32).fill(9)},activeKeyId:'test'}),calls=[];let seller='seller',pause;
-  const fetch=async(url,options)=>{calls.push({url,options});if(url.endsWith('/oauth2/token')){if(pause)await pause;return Response.json({access_token:'private-access-token',refresh_token:'private-refresh-token',merchant_id:seller,expires_at:'2099-01-01T00:00:00Z'});}if(url.endsWith('/oauth2/token/status'))return Response.json({merchant_id:seller,scopes:['MERCHANT_PROFILE_READ','PAYMENTS_READ','PAYMENTS_WRITE']});if(url.endsWith('/v2/locations'))return Response.json({locations:[{id:'LOCATION',status:'ACTIVE',currency:'USD'}]});if(url.endsWith('/oauth2/revoke'))return Response.json({success:true});throw new Error('unexpected fixture');};
+  const store=createMemoryConnectionStore(),vault=createTokenVault({keys:{test:new Uint8Array(32).fill(9)},activeKeyId:'test'}),calls=[];let seller='seller',pause,locationPause;
+  const fetch=async(url,options)=>{calls.push({url,options});if(url.endsWith('/oauth2/token')){if(pause)await pause;return Response.json({access_token:'private-access-token',refresh_token:'private-refresh-token',merchant_id:seller,expires_at:'2099-01-01T00:00:00Z'});}if(url.endsWith('/oauth2/token/status'))return Response.json({merchant_id:seller,scopes:['MERCHANT_PROFILE_READ','PAYMENTS_READ','PAYMENTS_WRITE']});if(url.endsWith('/v2/locations')){if(locationPause)await locationPause;return Response.json({locations:[{id:'LOCATION',status:'ACTIVE',currency:'USD'}]});}if(url.endsWith('/oauth2/revoke'))return Response.json({success:true});throw new Error('unexpected fixture');};
   const api=createSquareConnections({store,vault,applicationId:'app',applicationSecret:'private-app-secret',redirectUri:'https://site.test/callback',fetch});
-  return {store,vault,calls,api,setSeller:value=>{seller=value;},pause:value=>{pause=value;}};
+  return {store,vault,calls,api,setSeller:value=>{seller=value;},pause:value=>{pause=value;},pauseLocations:value=>{locationPause=value;}};
 }
 async function connect(api){const {authorization_url}=await api.authorize({...binding,actor:'admin'}),state=new URL(authorization_url).searchParams.get('state');return api.callback({state,code:'transient-code',actor:'admin',merchant_id:'merchant'});}
 
@@ -39,4 +39,17 @@ test('connected payment service cannot use a cached token after disconnect',asyn
   const service=await createConnectedPaymentService({connections:api,binding,store:createMemoryPaymentStore(),provider:providerFor('square'),context:{fetch:async()=>{calls++;throw Error('unexpected request');}}});
   await service.create(input);await api.revoke(binding);
   await assert.rejects(()=>service.pay({orderId:'order',attemptId:'attempt',sourceToken:'source'}),/connection_unavailable/);assert.equal(calls,0);
+});
+
+test('stored malformed expiry fails closed before decrypting credentials',async()=>{
+  const {api,store}=setup();await connect(api);await store.transact(connectionKey(binding),tx=>{tx.record.expires_at='invalid';});
+  await assert.rejects(()=>api.credentials(binding),/connection_unavailable/);
+});
+
+
+test('slow location selection cannot overwrite a newer connection generation',async()=>{
+  const {api,store,pauseLocations,calls}=setup();await connect(api);let release;pauseLocations(new Promise(resolve=>{release=resolve;}));
+  const selecting=api.selectLocation(binding,'LOCATION');while(!calls.some(call=>call.url.endsWith('/v2/locations')))await new Promise(resolve=>setImmediate(resolve));
+  await store.transact(connectionKey(binding),tx=>{tx.record.generation++;tx.record.location_id='NEWER';});release();
+  await assert.rejects(()=>selecting,/connection_changed/);assert.equal((await api.status(binding)).location_id,'NEWER');
 });

@@ -62,3 +62,16 @@ test('unknown create cannot be bypassed by canceling the local order',async()=>{
   await assert.rejects(()=>service.reconcile({orderId:'order',attemptId:'attempt',type:'untrusted'}),/unsupported_reconciliation_type/);
   assert.equal((await service.reconcile({orderId:'order',attemptId:'attempt'})).status,'completed');
 });
+
+test('a late API error cannot overwrite a payment already observed through another worker',async()=>{
+  const store=createMemoryPaymentStore(),fixture=squareFixture(),square=providerFor('square');let service;
+  const provider={...square,createPayment:async(...args)=>{
+    const remote=await square.createPayment(...args),order=await service.get('order');
+    await service.observe({orderId:'order',localId:order.active_payment_id,observation:square.paymentObservation(remote,scope)});
+    throw Object.assign(Error('late conflicting response'),{code:'card_declined',definitive:true});
+  }};
+  service=createPaymentService({store,provider,scope,config:{location_id:'LOCATION'},env:{SQUARE_ACCESS_TOKEN:'fixture'},context:{fetch:fixture.fetch}});await service.create(input);
+  await assert.rejects(()=>service.pay({orderId:'order',attemptId:'a',sourceToken:'source'}),error=>error.code==='outcome_unknown');
+  const order=await service.get('order');assert.equal(order.payments[order.active_payment_id].status,'completed');assert.equal(Object.values(order.operations)[0].state,'unknown');
+  assert.equal((await service.reconcile({orderId:'order',attemptId:'a'})).status,'completed');
+});

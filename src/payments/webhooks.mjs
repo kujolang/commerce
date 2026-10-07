@@ -36,10 +36,13 @@ export async function processPaymentWebhook({store,service,provider,config,env={
     const remote=kind==='payment'?await provider.retrievePayment(provider_id,config,env,context):await provider.retrieveRefund(provider_id,config,env,context);
     const observation=kind==='payment'?provider.paymentObservation(remote,scope):provider.refundObservation(remote,scope);
     let reference_id=remote.reference_id;
-    if(kind==='payment'&&!reference_id&&remote.order_id){const order=await provider.retrieveOrder(remote.order_id,config,env,context);if(order.location_id!==scope.location_id)throw fail('provider_observation_mismatch');reference_id=order.reference_id;}
-    const local=await store.locate(scope,{kind,provider_id,reference_id,provider_order_id:remote.order_id});
+    let local=await store.locate(scope,{kind,provider_id,reference_id,provider_order_id:remote.order_id});
+    if(!local&&kind==='payment'&&!reference_id&&remote.order_id){
+      const order=await provider.retrieveOrder(remote.order_id,config,env,context);if(order.location_id!==scope.location_id)throw fail('provider_observation_mismatch');reference_id=order.reference_id;
+      local=await store.locate(scope,{kind,provider_id,reference_id,provider_order_id:remote.order_id});
+    }
     if(!local)throw fail('unmapped_provider_observation');
     await service.observe({orderId:local.order_id,localId:local.local_id,observation,receipt});
     return {status:'processed',event_id:receipt.id};
-  }catch(error){if(error.code==='stale_receipt')return {status:'superseded',event_id:receipt.id};await store.retry(scope,receipt,{maxAttempts,delayMs});return {status:receipt.attempts>=maxAttempts?'dead':'retrying',event_id:receipt.id,code:error.code||'observation_unavailable'};}
+  }catch(error){if(error.code==='stale_receipt')return {status:'superseded',event_id:receipt.id};try{await store.retry(scope,receipt,{maxAttempts,delayMs});}catch(retryError){if(retryError.code==='stale_receipt')return {status:'superseded',event_id:receipt.id};throw retryError;}return {status:receipt.attempts>=maxAttempts?'dead':'retrying',event_id:receipt.id,code:error.code||'observation_unavailable'};}
 }

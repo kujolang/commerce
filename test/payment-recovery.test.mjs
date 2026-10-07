@@ -18,3 +18,15 @@ test('dead receipt replay is audited and cannot be repeated while ready',async()
   await store.replay(scope,'event','operator');await assert.rejects(()=>store.replay(scope,'event','operator'),/not_dead/);
   assert.equal((await store.outbox(scope))[0].event.data.actor,'operator');
 });
+
+test('one failing optional reconciler does not abort the page or lose its resume cursor',async()=>{
+  const service={scope},store={list:async()=>[{id:'order',operations:{a:{id:'first',type:'invoice.create',state:'unknown'},b:{id:'second',type:'invoice.create',state:'unknown'}}}]};
+  const result=await reconcileOwnedOrders({store,service,onOtherOperation:async({operation})=>{if(operation.id==='first')throw Error('transient');return {operation_id:operation.id,status:'processed'};}});
+  assert.equal(result.results[0].status,'unresolved');assert.equal(result.results[1].operation_id,'second');
+});
+test('invalid recovery limits fail before database or publisher work',async()=>{
+  for(const limit of [NaN,Infinity,1.5,0,-1]){
+    await assert.rejects(()=>reconcileOwnedOrders({limit}),/invalid_recovery_limit/);
+    await assert.rejects(()=>publishPaymentOutbox({scope,limit}),/invalid_recovery_limit/);
+  }
+});

@@ -29,3 +29,19 @@ test('late fee observations update the ledger without emitting a second payment 
   assert.equal((await store.outbox(scope)).filter(row=>row.event.type==='payment.completed').length,1);
   assert.equal((await service.get('order')).payments[paid.local_id].financials.processing_fees[0].amount_money.amount,-31);
 });
+
+test('mapped hosted payment webhook does not depend on a redundant Orders request',async()=>{
+  const fixture=squareFixture(),store=createMemoryPaymentStore(),provider=providerFor('square'),config={location_id:'LOCATION'},env={SQUARE_ACCESS_TOKEN:'fixture'},context={fetch:fixture.fetch},service=createPaymentService({store,provider,scope,config,env,context});
+  await service.create(input);const paid=await service.pay({orderId:'order',attemptId:'a',sourceToken:'source'});
+  const remote={...fixture.payments.values().next().value,reference_id:undefined,order_id:'provider-order'};
+  let orderReads=0;const readProvider={...provider,retrievePayment:async()=>remote,retrieveOrder:async()=>{orderReads++;throw Error('Orders temporarily unavailable');}};
+  await store.ingest(scope,{id:'mapped-event',kind:'payment',provider_id:paid.provider_id});
+  assert.equal((await processPaymentWebhook({store,service,provider:readProvider,config})).status,'processed');assert.equal(orderReads,0);
+});
+
+test('a superseded worker cannot retry another workers receipt after its provider request fails',async()=>{
+  let now=0;const store=createMemoryPaymentStore({now:()=>now}),service={scope};await store.ingest(scope,{id:'leased',kind:'payment',provider_id:'p'});
+  const provider={retrievePayment:async()=>{now=31000;await store.lease(scope);throw Error('old request failed');}};
+  assert.equal((await processPaymentWebhook({store,service,provider,config:{location_id:'LOCATION'}})).status,'superseded');
+  assert.equal((await store.inbox(scope))[0].state,'leased');
+});
