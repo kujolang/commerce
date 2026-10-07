@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Document the Square integration architecture review, existing provider/domain boundaries, reproducible contract/idempotency gaps, and phased Sandbox, recovery, OAuth and commercialization plan.
+
 - Add an optional PostgreSQL 16 reference adapter with migrations, atomic webhook ingress, semantic operations, queue leases, dead letters, reconciliation cursors, transactional outbox, replay claims, consumer deduplication, and operator audit storage.
 - Add a containerized receiver/worker/signed-consumer staging topology, local smoke test, and provider/infrastructure promotion runbook.
 - Add bounded Node request ingestion, PostgreSQL load checks, namespaced dead letters, and a credential-gated Square subscription lifecycle Sandbox test.

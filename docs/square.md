@@ -1,5 +1,7 @@
 # Square
 
+For the proposed direct-payments domain, embedded checkout, recovery, OAuth and commercial rollout, see the [Square integration architecture review](square-integration-review.md). It distinguishes existing support from proposed capabilities and records the remaining implementation gates.
+
 Configure an access token and `location_id`, then map one-time purchasables to a Square `catalog_object_id`. The adapter calls `CreatePaymentLink` with an idempotency key and a catalog-backed order. Square remains authoritative for payment execution; the reviewed local catalog remains authoritative for the intended SKU and provider mapping.
 
 Subscription products use a trusted `plan_variation_id`, `cadence: monthly`, an authenticated/reconciled Square customer, a saved card ID, explicit consent evidence, and `createSubscription()`. The adapter pins Square API version `2026-09-16`, defaults to `https://connect.squareupsandbox.com`, and only accepts the official sandbox or production API origin. This release capability-declares static recurring prices only; relative/itemized phases require additional order-template input and remain false. Commerce never turns browser-authored amounts or plan IDs into provider requests.
