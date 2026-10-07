@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Separate Square protocol code into focused client, checkout, customer, subscription and event modules while preserving existing provider exports and behavior.
+
 - Repair Square event/schema compatibility with six additive v1 event types; payment.created now reports payment creation rather than order creation, and unknown notifications cannot imply completion.
 - Allocate provider-operation UUID keys atomically when omitted, preserve stored legacy keys, bind subscription effect intent, and reject lossy Square keys instead of truncating them. Legacy unbound subscription rows fail closed pending reconciliation; see [Step 1 upgrade/report](docs/square-step1-implementation.md).
 
