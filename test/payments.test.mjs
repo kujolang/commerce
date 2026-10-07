@@ -44,3 +44,13 @@ test('protocol rejects unofficial origins, follows no redirects, and redacts err
   await assert.rejects(()=>provider.retrievePayment('id',{api_base:'https://attacker.test'},{SQUARE_ACCESS_TOKEN:'secret'},{fetch:async()=>{calls++;}}),/official/);assert.equal(calls,0);
   await assert.rejects(()=>provider.retrievePayment('id',{}, {SQUARE_ACCESS_TOKEN:'fixture'}, {fetch:async(_url,options)=>{assert.equal(options.redirect,'error');return new Response(JSON.stringify({errors:[{code:'BAD_REQUEST',detail:'do not echo secret'}]}),{status:400});}}),error=>!error.message.includes('secret')&&error.code==='invalid_request');
 });
+
+test('delayed capture and cancellation preserve local identity and observed terminal state',async()=>{
+  for(const action of ['capture','cancel']){
+    const {service,fixture}=setup();await service.create(input);
+    const authorized=await service.pay({orderId:'order',attemptId:'authorize',sourceToken:'source',autocomplete:false});assert.equal(authorized.status,'authorized');
+    const result=await service.changePayment({orderId:'order',paymentId:authorized.local_id,action,operationId:action});assert.equal(result.status,action==='capture'?'completed':'canceled');
+    assert.deepEqual(await service.changePayment({orderId:'order',paymentId:authorized.local_id,action,operationId:action}),result);
+    assert.equal(fixture.calls.filter(call=>call.path.endsWith(action==='capture'?'/complete':'/cancel')).length,1);
+  }
+});

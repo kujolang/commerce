@@ -1,4 +1,4 @@
-import {scopeKey,fail} from '../src/payments/model.mjs';
+import {scopeKey,fail,locateInOrder} from '../src/payments/model.mjs';
 
 const schemaName=value=>{if(!/^[a-z_][a-z0-9_]{0,62}$/.test(value))throw new Error('invalid PostgreSQL schema');return value;};
 export function paymentMigrationSql({schema='commerce'}={}){
@@ -40,6 +40,13 @@ export function createPostgresPaymentStore({pool,schema='commerce'}={}){
       return result;
     });},
     async get(scope,id){return (await pool.query(`SELECT document FROM ${s}.owned_orders WHERE scope=$1 AND id=$2`,[scopeKey(scope),id])).rows[0]?.document||null;},
+    async locate(scope,reference){
+      const collection=reference.kind==='refund'?'refunds':'payments';
+      const rows=(await pool.query(`SELECT document FROM ${s}.owned_orders WHERE scope=$1 AND (
+        EXISTS(SELECT 1 FROM jsonb_each(document->$2) p WHERE p.value->>'provider_id'=$3 OR ($2='payments' AND (p.value->>'id'=$4 OR p.value->>'provider_order_id'=$5)))
+        OR ($2='payments' AND EXISTS(SELECT 1 FROM jsonb_each(document->'operations') o WHERE o.value->'result'->>'provider_order_id'=$5))) LIMIT 2`,[scopeKey(scope),collection,reference.provider_id||null,reference.reference_id||null,reference.provider_order_id||null])).rows;
+      const matches=rows.flatMap(row=>locateInOrder(row.document,reference));if(matches.length>1)throw fail('ambiguous_local_reference');return matches[0]||null;
+    },
     async list(scope,{limit=100}={}){return (await pool.query(`SELECT document FROM ${s}.owned_orders WHERE scope=$1 ORDER BY id LIMIT $2`,[scopeKey(scope),Math.min(1000,Math.max(1,limit))])).rows.map(row=>row.document);},
     async ingest(scope,event){const result=await pool.query(`INSERT INTO ${s}.owned_inbox(scope,id,event) VALUES($1,$2,$3) ON CONFLICT DO NOTHING RETURNING id`,[scopeKey(scope),event.id,event]);return {duplicate:!result.rowCount};},
     async lease(scope,{leaseMs=30000}={}){return transaction(async client=>{const result=await client.query(`WITH candidate AS (SELECT id FROM ${s}.owned_inbox WHERE scope=$1 AND ((state='ready' AND available_at<=now()) OR (state='leased' AND lease_until<=now())) ORDER BY available_at,id FOR UPDATE SKIP LOCKED LIMIT 1) UPDATE ${s}.owned_inbox job SET state='leased',token=$2,generation=generation+1,attempts=attempts+1,lease_until=now()+$3*interval '1 millisecond' FROM candidate WHERE job.scope=$1 AND job.id=candidate.id RETURNING job.*`,[scopeKey(scope),crypto.randomUUID(),Math.max(1,leaseMs)]);return receiptRow(result.rows[0])||null;});},

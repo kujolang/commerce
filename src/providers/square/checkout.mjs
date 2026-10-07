@@ -8,6 +8,23 @@ export const checkoutMethods={
 import {squareJson} from './client.mjs';
 import {money,fail} from '../../payments/model.mjs';
 export const ownedCheckoutMethods={
+  async retrieveOrder(id,config,env,context){return (await squareJson(`/v2/orders/${encodeURIComponent(id)}`,undefined,config,env,context,'GET')).order;},
+  async findOwnedCheckout({reference_id},config,env,context={}){
+    let cursor,match;
+    for(let page=0;page<(context.maxPages||10);page++){
+      const batch=await ownedCheckoutMethods.listPaymentLinks({cursor},config,env,context);
+      for(const link of batch.payment_links||[]){
+        const order=await ownedCheckoutMethods.retrieveOrder(link.order_id,config,env,context);
+        if(order.location_id===config.location_id&&order.reference_id===reference_id){
+          if(match)throw fail('ambiguous_checkout');
+          match={...checkoutResult(link.url),provider_reference:link.id,provider_order_id:link.order_id,money:money(order.total_money)};
+        }
+      }
+      if(!batch.cursor)return match||null;
+      if(cursor===batch.cursor)throw fail('reconciliation_incomplete');cursor=batch.cursor;
+    }
+    throw fail('reconciliation_incomplete');
+  },
   async createOwnedCheckout({lines,reference_id},config,env,context={}){
     const response=await squareJson('/v2/online-checkout/payment-links',{
       idempotency_key:requiredOperationKey(context.idempotencyKey),

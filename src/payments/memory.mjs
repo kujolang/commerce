@@ -1,4 +1,4 @@
-import {scopeKey,fail} from './model.mjs';
+import {scopeKey,fail,locateInOrder} from './model.mjs';
 
 // Test/reference fixture only. The PostgreSQL store supplies process durability.
 export function createMemoryPaymentStore({now=Date.now}={}){
@@ -18,6 +18,7 @@ export function createMemoryPaymentStore({now=Date.now}={}){
       return structuredClone(result);
     });},
     async get(scope,id){return structuredClone(orders.get(key(scope,id))||null);},
+    async locate(scope,reference){const matches=[...orders.values()].filter(order=>scopeKey(order.scope)===scopeKey(scope)).flatMap(order=>locateInOrder(order,reference));if(matches.length>1)throw fail('ambiguous_local_reference');return matches[0]||null;},
     async list(scope){return [...orders.values()].filter(order=>scopeKey(order.scope)===scopeKey(scope)).map(order=>structuredClone(order));},
     async ingest(scope,event){return lock(scopeKey(scope),async()=>{const k=key(scope,event.id);if(inbox.has(k))return {duplicate:true};inbox.set(k,{scope:structuredClone(scope),event:structuredClone(event),id:event.id,state:'ready',generation:0,attempts:0,available_at:now()});return {duplicate:false};});},
     async lease(scope,{leaseMs=30000}={}){return lock(scopeKey(scope),async()=>{const row=[...inbox.values()].find(item=>scopeKey(item.scope)===scopeKey(scope)&&(item.state==='ready'&&item.available_at<=now()||item.state==='leased'&&item.lease_until<=now()));if(!row)return null;Object.assign(row,{state:'leased',token:crypto.randomUUID(),generation:row.generation+1,attempts:row.attempts+1,lease_until:now()+leaseMs});return structuredClone(row);});},

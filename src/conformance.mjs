@@ -11,6 +11,7 @@ export function providerConformance(provider){
   if(provider?.capabilities?.refund_events&&!provider.capabilities.webhooks)issues.push('refund_events requires webhooks');
   if(provider?.capabilities?.pause_resume&&(!provider.capabilities.subscriptions||typeof provider.pauseSubscription!=='function'||typeof provider.resumeSubscription!=='function'))issues.push('pause_resume requires subscription pause and resume methods');
   if(provider?.capabilities?.direct_reconciliation&&typeof provider.reconcileObject!=='function')issues.push('direct_reconciliation requires reconcileObject()');
+  for(const [capability,methods] of Object.entries({direct_payments:['createPayment','retrievePayment'],manual_capture:['completePayment','cancelPayment'],refunds:['refundPayment','retrieveRefund'],owned_checkout:['createOwnedCheckout'],invoices:['createInvoice','publishInvoice','retrieveInvoice','cancelInvoice']}))if(provider?.capabilities?.[capability])for(const method of methods)if(typeof provider[method]!=='function')issues.push(`${capability} requires ${method}()`);
   return issues;
 }
 

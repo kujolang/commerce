@@ -54,7 +54,7 @@ export function createPaymentService({store,provider,scope:inputScope,config={},
     async pay({orderId,attemptId,sourceToken,mode='embedded',autocomplete=true}){
       if(!['embedded','hosted'].includes(mode)||typeof autocomplete!=='boolean')throw fail('invalid_checkout_mode');
       const prepared=await store.transact(scope,orderId,async tx=>{
-        const order=required(tx);if(order.state!=='open')throw fail('order_not_open');
+        const order=required(tx);if(order.collection_route==='invoice')throw fail('payment_unresolved');if(order.state!=='open')throw fail('order_not_open');
         const key=operationKey('payment.create',attemptId),existing=order.operations[key];
         if(!existing&&order.active_payment_id&&!['failed','canceled'].includes(order.payments[order.active_payment_id].status))throw fail('payment_unresolved');
         const operation=beginOperation(order,{id:attemptId,type:'payment.create',intent:{mode,autocomplete,order_intent:order.intent}});
@@ -63,7 +63,7 @@ export function createPaymentService({store,provider,scope:inputScope,config={},
         if(mode==='embedded'&&operation.state==='ready'&&(typeof sourceToken!=='string'||!sourceToken||sourceToken.length>4096))throw fail('source_required');
         const ticket=claimOperation(operation,{now:now(),leaseMs});
         if(!operation.local_id){operation.local_id=operation.correlation_id;order.payments[operation.local_id]={schema:'kujo-commerce-payment/v1',schema_version:1,id:operation.local_id,order_id:order.id,status:'created',money:order.intent.total,mode};order.active_payment_id=operation.local_id;}
-        await audit(tx,'payment.submitted',{local_id:operation.local_id});return {orderId,operation:structuredClone(operation),ticket};
+        order.collection_route=mode;await audit(tx,'payment.submitted',{local_id:operation.local_id});return {orderId,operation:structuredClone(operation),ticket};
       });
       return execute(prepared,operation=>mode==='hosted'?provider.createOwnedCheckout({lines:operation.intent.order_intent.lines,reference_id:operation.correlation_id},providerConfig,env,{...context,idempotencyKey:operation.key}):provider.createPayment({source_id:sourceToken,money:operation.intent.order_intent.total,reference_id:operation.correlation_id,autocomplete},providerConfig,env,{...context,idempotencyKey:operation.key}),remote=>{
         if(mode==='hosted'){equalIntent(prepared.operation.intent.order_intent.total,remote.money);return {result:{local_id:prepared.operation.local_id,checkout_url:remote.checkout_url,provider_reference:remote.provider_reference,provider_order_id:remote.provider_order_id}};}
@@ -84,6 +84,36 @@ export function createPaymentService({store,provider,scope:inputScope,config={},
       });
       return execute(prepared,operation=>provider.refundPayment(operation.intent,providerConfig,env,{...context,idempotencyKey:operation.key}),remote=>{const observation=provider.refundObservation(remote,scope);return {result:{local_id:prepared.operation.local_id,provider_id:observation.provider_id,status:observation.status},observation};});
     },
+    async changePayment({orderId,paymentId,action,operationId}){
+      if(!['capture','cancel'].includes(action))throw fail('invalid_payment_action');
+      const prepared=await store.transact(scope,orderId,async tx=>{
+        const order=required(tx),payment=Object.hasOwn(order.payments,paymentId)?order.payments[paymentId]:null;
+        if(!payment?.provider_id)throw fail('payment_reference_required');
+        const operation=beginOperation(order,{id:operationId,type:`payment.${action}`,intent:{payment_id:payment.provider_id,action}});
+        if(operation.state==='succeeded')return {cached:true,operation};
+        if(payment.status!=='authorized')throw fail('payment_not_authorized');
+        const ticket=claimOperation(operation,{now:now(),leaseMs});operation.local_id=paymentId;
+        await audit(tx,`payment.${action}_submitted`,{local_id:paymentId});return {orderId,operation:structuredClone(operation),ticket};
+      });
+      return execute(prepared,async operation=>{
+        const current=await provider.retrievePayment(operation.intent.payment_id,providerConfig,env,context);
+        const desired=action==='capture'?'COMPLETED':'CANCELED';
+        if(current.status===desired)return current;
+        if(current.status!=='APPROVED')throw fail('provider_state_conflict');
+        return action==='capture'?provider.completePayment(current.id,{version_token:current.version_token},providerConfig,env,context):provider.cancelPayment(current.id,providerConfig,env,context);
+      },remote=>{const observation=provider.paymentObservation(remote,scope);return {result:{local_id:paymentId,provider_id:observation.provider_id,status:observation.status},observation};});
+    },
+    async recoverRefundReference({orderId,refundId,providerId,actor,evidenceReference}){
+      if(!actor||!evidenceReference)throw fail('recovery_evidence_required');
+      const observation=provider.refundObservation(await provider.retrieveRefund(providerId,providerConfig,env,context),scope);
+      return store.transact(scope,orderId,async tx=>{
+        const operation=required(tx).operations[operationKey('refund.create',refundId)];
+        if(!operation||operation.state!=='unknown')throw fail('operation_not_unknown');
+        const record=await recordObservation(tx,operation.local_id,observation);
+        operation.state='succeeded';operation.result={local_id:record.id,provider_id:record.provider_id,status:record.status};
+        await audit(tx,'refund.recovered_by_operator',{local_id:record.id,actor:String(actor).slice(0,256),evidence_reference:String(evidenceReference).slice(0,256)});return operation.result;
+      });
+    },
     async observe({orderId,localId,observation,receipt}){return store.transact(scope,orderId,async tx=>{const result=await recordObservation(tx,localId,observation);if(receipt)await tx.complete(receipt);return result;});},
     async reconcile({orderId,attemptId,type='payment.create'}){
       const prepared=await store.transact(scope,orderId,async tx=>{
@@ -96,10 +126,17 @@ export function createPaymentService({store,provider,scope:inputScope,config={},
       const operation=prepared.operation,record=type==='refund.create'?prepared.order.refunds[operation.local_id]:prepared.order.payments[operation.local_id];
       try{
         let remote;
+        if(type==='payment.create'&&operation.intent.mode==='hosted'&&!operation.result?.provider_order_id){
+          const link=await provider.findOwnedCheckout({reference_id:operation.correlation_id},providerConfig,env,context);
+          if(!link)throw fail('outcome_unknown');equalIntent(operation.intent.order_intent.total,link.money);
+          return await finish(orderId,operation,prepared.ticket,{local_id:operation.local_id,checkout_url:link.checkout_url,provider_reference:link.provider_reference,provider_order_id:link.provider_order_id});
+        }
         if(type==='refund.create')remote=record.provider_id?await provider.retrieveRefund(record.provider_id,providerConfig,env,context):await provider.findRefund(operation.intent,providerConfig,env,context);
         else remote=record.provider_id?await provider.retrievePayment(record.provider_id,providerConfig,env,context):await provider.findPayment({reference_id:operation.correlation_id,order_id:operation.result?.provider_order_id,begin_time:prepared.order.created_at},providerConfig,env,context);
         if(!remote)throw fail('outcome_unknown');
-        const observation=type==='refund.create'?provider.refundObservation(remote,scope):provider.paymentObservation(remote,scope),result={local_id:operation.local_id,provider_id:observation.provider_id,status:observation.status};
+        const observation=type==='refund.create'?provider.refundObservation(remote,scope):provider.paymentObservation(remote,scope);
+        if((type==='payment.capture'&&observation.status!=='completed')||(type==='payment.cancel'&&observation.status!=='canceled'))throw fail('outcome_unknown');
+        const result={local_id:operation.local_id,provider_id:observation.provider_id,status:observation.status};
         if(prepared.completed){await api.observe({orderId,localId:operation.local_id,observation});return result;}
         return await finish(orderId,operation,prepared.ticket,result,observation);
       }catch(error){if(!prepared.completed)await uncertain(orderId,operation,prepared.ticket,{code:'reconciliation_incomplete'});throw error;}

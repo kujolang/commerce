@@ -30,7 +30,7 @@ export function createOrder(input,{now=()=>new Date().toISOString()}={}){
   const intent={customer_id,offer_revision,lines,total:{amount:total,currency}};
   // Callers provide already priced lines, including any explicit tax/shipping lines.
   // No browser amount, arbitrary metadata, or provider token is copied here.
-  return {schema:'kujo-commerce-order/v1',schema_version:1,id,scope,intent,state:'open',version:1,active_payment_id:null,payments:{},refunds:{},operations:{},created_at:now(),updated_at:now()};
+  return {schema:'kujo-commerce-order/v1',schema_version:1,id,scope,intent,state:'open',version:1,active_payment_id:null,payments:{},refunds:{},operations:{},checkout_attempt_id:crypto.randomUUID(),expires_at:new Date(Date.parse(now())+15*60*1000).toISOString(),created_at:now(),updated_at:now()};
 }
 export function transitionOrder(order,state){
   const allowed={open:['canceled','fulfilled'],fulfilled:[],canceled:[]};
@@ -83,4 +83,13 @@ export function claimOperation(operation,{now=Date.now(),leaseMs=30000,reconcile
 }
 export function assertFence(operation,ticket){
   if(operation.state!=='submitted'||operation.token!==ticket?.token||operation.generation!==ticket?.generation)throw fail('stale_operation');
+}
+
+export function locateInOrder(order,{kind='payment',provider_id,reference_id,provider_order_id}){
+  const records=kind==='refund'?order.refunds:order.payments;
+  return Object.values(records).filter(record=>
+    (provider_id&&record.provider_id===provider_id)||
+    (kind==='payment'&&reference_id&&record.id===reference_id)||
+    (kind==='payment'&&provider_order_id&&(record.provider_order_id===provider_order_id||Object.values(order.operations).some(operation=>operation.local_id===record.id&&operation.result?.provider_order_id===provider_order_id)))
+  ).map(record=>({order_id:order.id,local_id:record.id}));
 }

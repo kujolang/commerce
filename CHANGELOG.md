@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add authenticated owned-checkout HTTP handlers, transient Square tokenization UI, native HMAC webhook verification, scoped current-state reconciliation, delayed capture/cancellation and explicit refund recovery.
+- Add independent stored-card consent, durable enrollment/card lifecycle operations and opt-in approved invoice draft/publication with deposits and an exclusive collection route.
+
 - Add opt-in owned orders, payment/refund observations, scoped PostgreSQL transactions, fenced operation claims, refund reservations and source-free unknown-payment recovery; preserve all legacy operation keys and tables.
 - Add Square direct payment/refund protocol and owned hosted-checkout correlation with strict origins, bounded responses and redacted provider errors. Production promotion remains gated on live Sandbox and deployment evidence.
 
