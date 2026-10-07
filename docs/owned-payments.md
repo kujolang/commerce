@@ -1,0 +1,13 @@
+# Optional owned payments
+
+`@kujolang/commerce/payments` adds a server-side order/payment/refund layer. Existing static catalogs, hosted provider checkout and v1 operation tables are unchanged. Square remains authoritative for provider outcomes; the host owns authorization, pricing, customer identity, tax policy and fulfillment.
+
+Create a `createPostgresPaymentStore({pool,schema})`, run its additive `migrate()`, and construct `createPaymentService({store,provider,scope,config,env,context})`. Scope requires canonical merchant ID, provider connection ID, environment, provider, provider merchant ID and location ID. Bind credentials to that exact scope outside browser input. Memory storage is a fixture, not production persistence.
+
+Orders freeze server-priced line items and an offer revision. Additional shipping/tax must be explicit server-priced lines; no implicit tax calculator is supplied. New operations receive persisted UUID keys and short correlation IDs. Never copy payment sources into orders, operations, queues or logs. API success, retrieved current state and verified webhook processing use the same observation reducer. A completed payment does not fulfill an order.
+
+The PostgreSQL adapter stores a bounded order aggregate with operation/payment/refund records in JSONB, locked per scope/order. Receipts and outbox are separate scoped tables. This deliberately serializes changes within an order; it does not lock a database transaction during provider I/O. Operation tickets and inbox generations reject stale worker commits. Never migrate old records into a fabricated scope or replace existing provider keys. Legacy v1 tables remain untouched; authenticated legacy reconciliation is still required.
+
+Unknown payment outcomes block both new embedded attempts and hosted fallback. Recovery retrieves stored provider IDs or scans by a persisted reference, with bounded pagination. A missing or ambiguous match remains unknown. Refunds without a recovered provider ID cannot be identified safely by amount/reason alone; they remain reserved until an operator supplies verified evidence. Pending/unknown refunds reserve captured balance; provider rejection releases it. Financial terminal conflicts are quarantined, not overwritten by arrival order. Opaque payment versions are preserved as strings.
+
+Server service methods are trusted primitives. Do not expose them directly without authenticated authorization, ownership validation, request limits and CSRF defenses. Production promotion also requires credentialed Square Sandbox evidence, deployment secrets/CSP review, backups and monitored recovery; fixture tests alone do not establish readiness.

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add opt-in owned orders, payment/refund observations, scoped PostgreSQL transactions, fenced operation claims, refund reservations and source-free unknown-payment recovery; preserve all legacy operation keys and tables.
+- Add Square direct payment/refund protocol and owned hosted-checkout correlation with strict origins, bounded responses and redacted provider errors. Production promotion remains gated on live Sandbox and deployment evidence.
+
 - Separate Square protocol code into focused client, checkout, customer, subscription and event modules while preserving existing provider exports and behavior.
 
 - Repair Square event/schema compatibility with six additive v1 event types; payment.created now reports payment creation rather than order creation, and unknown notifications cannot imply completion.

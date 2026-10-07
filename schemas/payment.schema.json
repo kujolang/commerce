@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "$id": "https://commerce.kujolang.ai/schemas/payment/v1",
+  "required": [
+    "schema",
+    "schema_version",
+    "id",
+    "order_id",
+    "status",
+    "money",
+    "mode"
+  ],
+  "properties": {
+    "schema": {
+      "const": "kujo-commerce-payment/v1"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "id": {
+      "type": "string"
+    },
+    "order_id": {
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "created",
+        "pending",
+        "authorized",
+        "completed",
+        "failed",
+        "canceled"
+      ]
+    },
+    "money": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "amount",
+        "currency"
+      ],
+      "properties": {
+        "amount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "currency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        }
+      }
+    },
+    "provider_id": {
+      "type": "string"
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "version_token": {
+      "type": "string"
+    },
+    "provider_order_id": {
+      "type": "string"
+    },
+    "mode": {
+      "enum": [
+        "hosted",
+        "embedded"
+      ]
+    }
+  }
+}

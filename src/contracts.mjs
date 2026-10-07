@@ -1,4 +1,5 @@
 export const CONTRACT_SCHEMAS = Object.freeze({
+  order:'kujo-commerce-order/v1', providerObservation:'kujo-commerce-provider-observation/v1',
   checkoutSession:'kujo-commerce-checkout-session/v1', customerReference:'kujo-commerce-customer-reference/v1',
   paymentMethodConsent:'kujo-commerce-payment-method-consent/v1', subscription:'kujo-commerce-subscription/v1',
   payment:'kujo-commerce-payment/v1', refund:'kujo-commerce-refund/v1', dispute:'kujo-commerce-dispute/v1',

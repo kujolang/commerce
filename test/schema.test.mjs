@@ -9,7 +9,7 @@ import {buildCatalog,loadProducts} from '../src/pipeline.mjs';
 import {providerFor} from '../src/providers.mjs';
 import {squareEventFixtures} from './fixtures/square-events.mjs';
 
-const directory=path.resolve('schemas'),names=['money','provider-capabilities','product','variant','catalog','cart','checkout-request','checkout-response','event','config','offer-revision','downstream-event'];
+const directory=path.resolve('schemas'),names=['money','provider-capabilities','product','variant','catalog','cart','checkout-request','checkout-response','event','config','offer-revision','downstream-event','payment','refund','provider-observation'];
 const schemas=Object.fromEntries(await Promise.all(names.map(async name=>[name,JSON.parse(await fs.readFile(path.join(directory,`${name}.schema.json`),'utf8'))])));
 const ajv=new Ajv2020({allErrors:true,strict:false});addFormats(ajv);Object.values(schemas).forEach(schema=>ajv.addSchema(schema));
 
