@@ -30,3 +30,13 @@ test('refresh serializes competitors, reconnect refuses another seller, disconne
 test('scope requirements reject unsupported fee permissions and production HTTP callbacks',()=>{
   const {store,vault}=setup();assert.throws(()=>createSquareConnections({store,vault,applicationId:'app',applicationSecret:'secret',redirectUri:'http://example.test/callback',environment:'production'}),/secure_redirect/);
 });
+
+test('connected payment service cannot use a cached token after disconnect',async()=>{
+  const {createConnectedPaymentService}=await import('../src/connections/payment-service.mjs');
+  const {createMemoryPaymentStore}=await import('../src/payments/index.mjs');
+  const {providerFor}=await import('../src/providers.mjs');const {input}=await import('./fixtures/owned-payments.mjs');
+  const {api}=setup();await connect(api);await api.selectLocation(binding,'LOCATION');let calls=0;
+  const service=await createConnectedPaymentService({connections:api,binding,store:createMemoryPaymentStore(),provider:providerFor('square'),context:{fetch:async()=>{calls++;throw Error('unexpected request');}}});
+  await service.create(input);await api.revoke(binding);
+  await assert.rejects(()=>service.pay({orderId:'order',attemptId:'attempt',sourceToken:'source'}),/connection_unavailable/);assert.equal(calls,0);
+});

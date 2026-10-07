@@ -1,5 +1,5 @@
 import {verifySquareSignature} from '../providers/square/events.mjs';
-import {fail,scopeOf} from './model.mjs';
+import {fail,scopeOf,scopedProviderConfig} from './model.mjs';
 
 export async function readBytes(request,maxBytes=16384){
   if(Number(request.headers.get('content-length'))>maxBytes)throw fail('body_too_large');
@@ -30,7 +30,7 @@ export function createSquarePaymentWebhook({store,scope:inputScope,secret,notifi
   };
 }
 export async function processPaymentWebhook({store,service,provider,config,env={},context={},maxAttempts=5,delayMs=1000}){
-  const scope=service.scope,receipt=await store.lease(scope);if(!receipt)return null;
+  const scope=service.scope;config=scopedProviderConfig(scope,config);const receipt=await store.lease(scope);if(!receipt)return null;
   try{
     const {kind,provider_id}=receipt.event;
     const remote=kind==='payment'?await provider.retrievePayment(provider_id,config,env,context):await provider.retrieveRefund(provider_id,config,env,context);
@@ -41,5 +41,5 @@ export async function processPaymentWebhook({store,service,provider,config,env={
     if(!local)throw fail('unmapped_provider_observation');
     await service.observe({orderId:local.order_id,localId:local.local_id,observation,receipt});
     return {status:'processed',event_id:receipt.id};
-  }catch(error){await store.retry(scope,receipt,{maxAttempts,delayMs});return {status:receipt.attempts>=maxAttempts?'dead':'retrying',event_id:receipt.id,code:error.code||'observation_unavailable'};}
+  }catch(error){if(error.code==='stale_receipt')return {status:'superseded',event_id:receipt.id};await store.retry(scope,receipt,{maxAttempts,delayMs});return {status:receipt.attempts>=maxAttempts?'dead':'retrying',event_id:receipt.id,code:error.code||'observation_unavailable'};}
 }

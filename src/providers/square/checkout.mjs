@@ -10,10 +10,11 @@ import {money,fail} from '../../payments/model.mjs';
 export const ownedCheckoutMethods={
   async retrieveOrder(id,config,env,context){return (await squareJson(`/v2/orders/${encodeURIComponent(id)}`,undefined,config,env,context,'GET')).order;},
   async findOwnedCheckout({reference_id},config,env,context={}){
-    let cursor,match;
+    let cursor,match,examined=0;
     for(let page=0;page<(context.maxPages||10);page++){
       const batch=await ownedCheckoutMethods.listPaymentLinks({cursor},config,env,context);
       for(const link of batch.payment_links||[]){
+        if(++examined>Math.min(context.maxObjects||100,100))throw fail('reconciliation_incomplete');
         const order=await ownedCheckoutMethods.retrieveOrder(link.order_id,config,env,context);
         if(order.location_id===config.location_id&&order.reference_id===reference_id){
           if(match)throw fail('ambiguous_checkout');

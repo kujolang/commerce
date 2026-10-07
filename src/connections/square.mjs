@@ -1,11 +1,11 @@
-import {boundedBody} from '../providers/square/client.mjs';
+import {boundedBody,squareRequest} from '../providers/square/client.mjs';
 import {hashState} from './vault.mjs';
 import {assertStableId} from '../contracts.mjs';
 import {fail} from '../payments/model.mjs';
 
 export const squareScopes=features=>{
   const scopes=new Set(['MERCHANT_PROFILE_READ']);
-  const modules={payments:['PAYMENTS_READ','PAYMENTS_WRITE'],hosted:['ORDERS_READ','ORDERS_WRITE','PAYMENTS_READ','PAYMENTS_WRITE'],cards:['CUSTOMERS_READ','CUSTOMERS_WRITE','PAYMENTS_READ','PAYMENTS_WRITE'],subscriptions:['SUBSCRIPTIONS_READ','SUBSCRIPTIONS_WRITE','CUSTOMERS_READ','CUSTOMERS_WRITE','PAYMENTS_READ','PAYMENTS_WRITE'],invoices:['INVOICES_READ','INVOICES_WRITE','ORDERS_READ','ORDERS_WRITE','CUSTOMERS_READ'],catalog:['ITEMS_READ','ITEMS_WRITE'],inventory:['INVENTORY_READ','INVENTORY_WRITE']};
+  const modules={terminal:['PAYMENTS_READ','PAYMENTS_WRITE','DEVICE_CREDENTIAL_MANAGEMENT'],reporting:['DISPUTES_READ','PAYOUTS_READ'],fees:['PAYMENTS_READ','PAYMENTS_WRITE','ORDERS_READ','ORDERS_WRITE','PAYMENTS_WRITE_ADDITIONAL_RECIPIENTS'],payments:['PAYMENTS_READ','PAYMENTS_WRITE'],hosted:['ORDERS_READ','ORDERS_WRITE','PAYMENTS_READ','PAYMENTS_WRITE'],cards:['CUSTOMERS_READ','CUSTOMERS_WRITE','PAYMENTS_READ','PAYMENTS_WRITE'],subscriptions:['ITEMS_READ','SUBSCRIPTIONS_READ','SUBSCRIPTIONS_WRITE','CUSTOMERS_READ','CUSTOMERS_WRITE','PAYMENTS_READ','PAYMENTS_WRITE'],invoices:['INVOICES_READ','INVOICES_WRITE','ORDERS_READ','ORDERS_WRITE','CUSTOMERS_READ'],catalog:['ITEMS_READ','ITEMS_WRITE'],inventory:['INVENTORY_READ','INVENTORY_WRITE']};
   for(const feature of features){if(!Object.hasOwn(modules,feature))throw fail('unsupported_connection_feature');for(const permission of modules[feature])scopes.add(permission);}return [...scopes].sort();
 };
 export const connectionKey=({merchant_id,connection_id,environment})=>{assertStableId(merchant_id);assertStableId(connection_id);if(!['sandbox','production'].includes(environment))throw fail('invalid_environment');return JSON.stringify([merchant_id,connection_id,environment]);};
@@ -22,7 +22,7 @@ export function createSquareConnections({store,vault,applicationId,applicationSe
   };
   const issueTokens=async(body)=>{
     const tokens=await call('/oauth2/token',{client_id:applicationId,client_secret:applicationSecret,...body});
-    if(!tokens.access_token||!tokens.refresh_token||!tokens.merchant_id||Date.parse(tokens.expires_at)<=now())throw fail('invalid_connection_tokens');
+    if(!tokens.access_token||!tokens.refresh_token||!tokens.merchant_id||!Number.isFinite(Date.parse(tokens.expires_at))||Date.parse(tokens.expires_at)<=now())throw fail('invalid_connection_tokens');
     const status=await call('/oauth2/token/status',{},`Bearer ${tokens.access_token}`);
     if(status.merchant_id!==tokens.merchant_id||scopes.some(scope=>!status.scopes?.includes(scope)))throw fail('connection_scope_missing');
     return tokens;
@@ -63,7 +63,7 @@ export function createSquareConnections({store,vault,applicationId,applicationSe
     },
     async recoverRefresh(binding){return store.transact(connectionKey({...binding,environment}),tx=>{if(tx.record?.state!=='refreshing'||now()-tx.record.refresh_started_at<30000)throw fail('connection_busy');tx.record.state='reconnect_required';tx.record.generation++;delete tx.record.refresh_claim;return publicConnection(tx.record);});},
     async status(binding){const value=await store.get(connectionKey({...binding,environment}));return {...publicConnection(value),refresh_due:Boolean(value&&now()-value.refreshed_at>=7*86400000)};},
-    async locations(binding){const {access_token}=await api.credentials(binding);const response=await request(`${base}/v2/locations`,{redirect:'error',headers:{authorization:`Bearer ${access_token}`,'square-version':'2026-09-16'}});const raw=await boundedBody(response);if(!response.ok)throw fail('location_discovery_failed');return (JSON.parse(raw).locations||[]).map(location=>({id:location.id,name:location.name,status:location.status,currency:location.currency,country:location.country,capabilities:location.capabilities||[]}));},
+    async locations(binding){const {access_token}=await api.credentials(binding);const response=await squareRequest('/v2/locations',{}, {api_base:base},{SQUARE_ACCESS_TOKEN:access_token},{fetch:request});const raw=await boundedBody(response);return (JSON.parse(raw).locations||[]).map(location=>({id:location.id,name:location.name,status:location.status,currency:location.currency,country:location.country,capabilities:location.capabilities||[]}));},
     async selectLocation(binding,locationId){const locations=await api.locations(binding),location=locations.find(value=>value.id===locationId&&value.status==='ACTIVE');if(!location)throw fail('invalid_location');return store.transact(connectionKey({...binding,environment}),tx=>{if(tx.record?.state!=='active')throw fail('connection_unavailable');tx.record.location_id=locationId;return publicConnection(tx.record);});},
     async revoke(binding){
       const id=connectionKey({...binding,environment}),record=await store.transact(id,tx=>{if(!tx.record)throw fail('connection_not_found');tx.record.state='disconnecting';tx.record.generation++;return structuredClone(tx.record);});

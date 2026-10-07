@@ -23,7 +23,7 @@ export async function boundedBody(response,maxBytes=1048576){
 const declineCodes=new Set(['CARD_DECLINED','GENERIC_DECLINE','INSUFFICIENT_FUNDS','CVV_FAILURE','ADDRESS_VERIFICATION_FAILURE','CARD_EXPIRED','INVALID_CARD']);
 export async function squareRequest(path,options={},config={},env={},context={}){
   const base=squareBase(config);if(!path.startsWith('/v2/')||path.includes('\\'))throw new Error('Invalid Square API path');
-  const token=squareToken(config,env),controller=new AbortController();let timer;
+  const token=context.resolveToken?await context.resolveToken({location_id:config.location_id,api_base:base}):squareToken(config,env);if(typeof token!=='string'||!token)throw new Error('Square access token is not configured');const controller=new AbortController();let timer;
   const timeout=new Promise((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(Object.assign(new Error('Square request outcome is unknown'),{code:'timeout',definitive:false}));},Math.max(100,Math.min(30000,context.timeoutMs||10000)));});
   try{return await Promise.race([timeout,(async()=>{
     let response;
@@ -34,7 +34,7 @@ export async function squareRequest(path,options={},config={},env={},context={})
       let codes=[];try{codes=JSON.parse(raw).errors?.map(error=>error.code)||[];}catch{}
       const declined=codes.some(code=>declineCodes.has(code));
       const code=declined?'card_declined':codes.includes('VERSION_MISMATCH')?'version_conflict':codes.includes('IDEMPOTENCY_KEY_REUSED')?'idempotency_conflict':response.status===401?'authentication':response.status===403?'authorization':response.status===429?'rate_limited':response.status>=500?'provider_unavailable':'invalid_request';
-      throw Object.assign(new Error(`Square request failed: ${code}`),{code,status:response.status,requestId,definitive:declined});
+      throw Object.assign(new Error(`Square request failed: ${code}`),{code,status:response.status,requestId,definitive:declined||code==='version_conflict'});
     }
     return new Response(raw||null,{status:response.status,headers:response.headers});
   })()]);}finally{clearTimeout(timer);}

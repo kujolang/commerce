@@ -21,3 +21,11 @@ test('signed scoped webhook ingress is atomic, deduplicated and reconciles curre
   assert.equal(await processPaymentWebhook({store,service,provider,config,env,context}),null);
   assert.equal((await send({...payload,event_id:'unknown',type:'payment.updated.COMPLETED'})).status,204);
 });
+
+test('late fee observations update the ledger without emitting a second payment completion',async()=>{
+  const fixture=squareFixture(),store=createMemoryPaymentStore(),provider=providerFor('square'),service=createPaymentService({store,provider,scope,config:{location_id:'LOCATION'},env:{SQUARE_ACCESS_TOKEN:'fixture'},context:{fetch:fixture.fetch}});await service.create(input);const paid=await service.pay({orderId:'order',attemptId:'a',sourceToken:'source'});
+  const remote=[...fixture.payments.values()][0];remote.updated_at='2026-10-07T12:00:00Z';remote.processing_fee=[{type:'INITIAL',effective_at:remote.updated_at,amount_money:{amount:-31,currency:'USD'}}];
+  await service.observe({orderId:'order',localId:paid.local_id,observation:provider.paymentObservation(remote,scope)});
+  assert.equal((await store.outbox(scope)).filter(row=>row.event.type==='payment.completed').length,1);
+  assert.equal((await service.get('order')).payments[paid.local_id].financials.processing_fees[0].amount_money.amount,-31);
+});

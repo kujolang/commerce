@@ -6,3 +6,10 @@ test('Mock verification stays offline',async()=>{let calls=0;const results=await
 test('Stripe verification is read-only and detects suspicious price drift',async()=>{let request;const results=await verifyRemote({provider:'stripe',providers:{stripe:{secret_key_env:'KEY'}}},[product],{KEY:'fixture'},async(url,options)=>{request={url,options};return new Response(JSON.stringify({active:true,currency:'usd',unit_amount:999,product:{active:true}}),{status:200})});assert.match(request.url,/\/v1\/prices\/price_1/);assert.equal(request.options.method,undefined);assert.equal(results[0].status,'warning');assert.match(results[0].message,/configured 1000 minor units/)});
 test('Polar verification detects archived products',async()=>{const results=await verifyRemote({provider:'polar',providers:{polar:{access_token_env:'TOKEN'}}},[product],{TOKEN:'fixture'},async()=>new Response(JSON.stringify({is_archived:true}),{status:200}));assert.equal(results[0].status,'error');assert.match(results[0].message,/archived/)});
 test('Link verification uses HEAD and accepts redirects',async()=>{let method;const results=await verifyRemote({provider:'link'},[product],{},async(_url,options)=>{method=options.method;return new Response(null,{status:302})});assert.equal(method,'HEAD');assert.equal(results[0].status,'ok')});
+
+test('Square verification rejects changed catalog prices before checkout',async()=>{
+  const {providerFor}=await import('../src/providers.mjs');
+  const square=providerFor('square'),item={...product,providers:{square:{catalog_object_id:'ITEM'}}},config={location_id:'LOCATION'};
+  const context={fetch:async()=>Response.json({object:{id:'ITEM',type:'ITEM_VARIATION',item_variation_data:{pricing_type:'FIXED_PRICING',price_money:{amount:999,currency:'USD'}}}})};
+  assert.equal((await square.verifyRemote(item,config,{SQUARE_ACCESS_TOKEN:'fixture'},context)).status,'error');
+});
