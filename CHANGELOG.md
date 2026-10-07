@@ -78,3 +78,11 @@
 
 - Initial provider-agnostic build pipeline, cart, checkout/webhook runtime,
   Stripe, Polar, Link, and Mock providers, schemas, tests, and documentation.
+
+### Square operational and optional modules
+
+- Added bounded reconciliation sweeps, audited dead-letter replay, at-least-once outbox publication and authenticated deployment-based payment CLI commands.
+- Added disabled-by-default application-fee policy/allocation support and provider-returned fee accounting, plus optional one-way catalog/inventory, device/Terminal and read-only dispute/payout modules.
+- Bound recurring consent to approved money/revision/plan and checked static monthly provider pricing; tightened invoice ownership, collection route exclusion, terminal cancellation audit and unknown-payment cancellation rules.
+- Resolve OAuth credentials per request, bound location discovery time/body limits, reject invalid token expiry, and preserve scoped encrypted refresh behavior.
+- Added explicit checkout restart after confirmed failure/cancellation, generated-record schema checks, operator/worker examples and credential-gated Sandbox payment tests. All legacy provider keys and v1 tables remain unchanged.

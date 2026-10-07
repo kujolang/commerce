@@ -61,3 +61,7 @@ provider sandbox evidence. See the [compatibility and deprecation policy](docs/c
 [Static Mode](docs/static-mode.md),
 [production checklist](docs/production-checklist.md), [security policy](SECURITY.md),
 and [threat model](docs/threat-model.md).
+
+### Optional owned Square payments
+
+See [owned payments](docs/owned-payments.md), [encrypted merchant connections](docs/square-connections.md), [implementation and acceptance status](docs/square-implementation-status.md), and the [deployment example](examples/owned-payments/README.md). These optional server modules preserve the static commerce contract. Fees and catalog/inventory/Terminal/reporting integrations default off; live Sandbox and commercial acceptance are required before production promotion.
