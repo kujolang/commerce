@@ -87,3 +87,12 @@
 - Resolve OAuth credentials per request, bound location discovery time/body limits, reject invalid token expiry, and preserve scoped encrypted refresh behavior.
 - Added explicit checkout restart after confirmed failure/cancellation, generated-record schema checks, operator/worker examples and credential-gated Sandbox payment tests. All legacy provider keys and v1 tables remain unchanged.
 - Updated the development-only `fast-uri` lockfile entry from 3.1.6 to 3.1.8 to clear the inherited dependency-audit failures; `npm audit` reports zero vulnerabilities.
+
+### Square pre-Sandbox hardening
+
+- Avoid unchanged PostgreSQL aggregate writes and add a partial pending-outbox index, preserving transactional locks, receipt completion and audit behavior.
+- Reuse known webhook payment mappings before fetching a Square Order; handle stale retry leases without affecting their replacement worker.
+- Keep sweeps running after an optional reconciler fails and reject invalid batch limits before I/O.
+- Preserve verified payment/refund observations when a late API failure arrives; conflicting outcomes remain unknown until reconciled.
+- Reject malformed stored OAuth expiry and fence delayed location selection against newer connection generations.
+- Prevent payment submission after browser checkout teardown and serialize checkout restart against tokenization and other restarts.
