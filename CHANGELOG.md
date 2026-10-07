@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add optional Square OAuth connections with one-use administrator state, encrypted token custody, scoped PostgreSQL persistence, serialized refresh, location selection and disconnect/revocation handling.
+
 - Add authenticated owned-checkout HTTP handlers, transient Square tokenization UI, native HMAC webhook verification, scoped current-state reconciliation, delayed capture/cancellation and explicit refund recovery.
 - Add independent stored-card consent, durable enrollment/card lifecycle operations and opt-in approved invoice draft/publication with deposits and an exclusive collection route.
 
