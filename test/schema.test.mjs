@@ -34,3 +34,13 @@ test('Square ignores non-Square event type aliases and missing payment status',(
 });
 test('schemas reject malformed cart and event payloads',()=>{assert.equal(ajv.validate(schemas.cart,{schema:'kujo-cart/v1',items:[{sku:'bad sku',quantity:0}]}),false);assert.equal(ajv.validate(schemas.event,{schema:'kujo-commerce-event/v1',provider:'mock',type:'anything'}),false);});
 test('generated catalog satisfies the catalog contract',async()=>{const products=await loadProducts(fileURLToPath(new URL('fixtures/content',import.meta.url)));const catalog=buildCatalog({provider:'mock',cart:{}},products);assert.equal(ajv.validate(schemas.catalog,catalog),true,JSON.stringify(ajv.errors));});
+
+test('actual owned payment, refund and provider observations satisfy public schemas',async()=>{
+  const {createMemoryPaymentStore,createPaymentService}=await import('../src/payments/index.mjs');
+  const {scope,input,squareFixture}=await import('./fixtures/owned-payments.mjs');
+  const store=createMemoryPaymentStore(),fixture=squareFixture(),provider=providerFor('square');
+  const service=createPaymentService({store,provider,scope,config:{location_id:scope.location_id},env:{SQUARE_ACCESS_TOKEN:'fixture'},context:{fetch:fixture.fetch}});
+  await service.create(input);const paid=await service.pay({orderId:'order',attemptId:'pay',sourceToken:'source'});await service.refund({orderId:'order',paymentId:paid.local_id,refundId:'refund',amount:100});
+  const order=await service.get('order');
+  for(const [name,values] of [['payment',Object.values(order.payments)],['refund',Object.values(order.refunds)],['provider-observation',[provider.paymentObservation([...fixture.payments.values()][0],scope)]]])for(const value of values)assert.equal(ajv.validate(schemas[name],value),true,JSON.stringify(ajv.errors));
+});

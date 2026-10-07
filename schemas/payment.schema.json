@@ -70,8 +70,120 @@
     "mode": {
       "enum": [
         "hosted",
-        "embedded"
+        "embedded",
+        "terminal"
       ]
+    },
+    "financials": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "application_fee",
+        "allocations",
+        "processing_fees"
+      ],
+      "properties": {
+        "application_fee": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "amount",
+                "currency"
+              ],
+              "properties": {
+                "amount": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "currency": {
+                  "type": "string",
+                  "pattern": "^[A-Z]{3}$"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "allocations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "location_id",
+              "amount_money"
+            ],
+            "properties": {
+              "location_id": {
+                "type": "string"
+              },
+              "amount_money": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "amount",
+                  "currency"
+                ],
+                "properties": {
+                  "amount": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "currency": {
+                    "type": "string",
+                    "pattern": "^[A-Z]{3}$"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "processing_fees": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "amount_money"
+            ],
+            "properties": {
+              "type": {
+                "type": "string"
+              },
+              "effective_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "amount_money": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "amount",
+                  "currency"
+                ],
+                "properties": {
+                  "amount": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "currency": {
+                    "type": "string",
+                    "pattern": "^[A-Z]{3}$"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

@@ -1,3 +1,4 @@
+import {quoteApplicationFee} from './fees.mjs';
 import {createOrder,scopeOf,equalIntent,fail,beginOperation,claimOperation,assertFence,operationKey,assertObservation,applyObservation,refundable,money,transitionOrder} from './model.mjs';
 
 export function createPaymentService({store,provider,scope:inputScope,config={},env={},context={},now=Date.now,leaseMs=30000}={}){
@@ -19,7 +20,8 @@ export function createPaymentService({store,provider,scope:inputScope,config={},
     const order=required(tx),collection=observation.kind==='payment'?order.payments:order.refunds,record=Object.hasOwn(collection,localId)?collection[localId]:null;
     if(!record)throw fail('local_reference_not_found');assertObservation(scope,observation,record.money);
     if(observation.kind==='refund'&&observation.payment_id!==order.payments[record.payment_id]?.provider_id)throw fail('refund_payment_mismatch');
-    if(applyObservation(record,observation))await audit(tx,`${observation.kind}.${record.status}`,{local_id:localId,provider_id:record.provider_id,money:record.money});
+    const previousStatus=record.status;
+    if(applyObservation(record,observation))await audit(tx,`${observation.kind}.${previousStatus===record.status?'updated':record.status}`,{local_id:localId,provider_id:record.provider_id,money:record.money,...(record.financials?{financials:record.financials}:{})});
     return record;
   };
   async function finish(orderId,operation,ticket,result,observation){
@@ -51,21 +53,23 @@ export function createPaymentService({store,provider,scope:inputScope,config={},
     async create(input){const order=createOrder({...input,scope},{now:timestamp});return store.transact(scope,order.id,async tx=>{if(tx.order){equalIntent(tx.order.intent,order.intent);return tx.order;}tx.put(order);await audit(tx,'order.created');return order;});},
     get:id=>store.get(scope,id),
     async setOrderState(id,state){return store.transact(scope,id,async tx=>{tx.put(transitionOrder(required(tx),state));await audit(tx,`order.${state}`);return tx.order;});},
+    async restartCheckout(orderId){return store.transact(scope,orderId,async tx=>{const order=required(tx),payment=order.payments[order.active_payment_id];if(order.state!=='open'||!payment||!['failed','canceled'].includes(payment.status))throw fail('payment_unresolved');order.checkout_attempt_id=crypto.randomUUID();order.expires_at=new Date(now()+15*60*1000).toISOString();await audit(tx,'checkout.restarted');return {id:order.id,expires_at:order.expires_at};});},
     async pay({orderId,attemptId,sourceToken,mode='embedded',autocomplete=true}){
       if(!['embedded','hosted'].includes(mode)||typeof autocomplete!=='boolean')throw fail('invalid_checkout_mode');
       const prepared=await store.transact(scope,orderId,async tx=>{
-        const order=required(tx);if(order.collection_route==='invoice')throw fail('payment_unresolved');if(order.state!=='open')throw fail('order_not_open');
+        const order=required(tx);if(['invoice','terminal','subscription'].includes(order.collection_route))throw fail('payment_unresolved');if(order.state!=='open')throw fail('order_not_open');
         const key=operationKey('payment.create',attemptId),existing=order.operations[key];
         if(!existing&&order.active_payment_id&&!['failed','canceled'].includes(order.payments[order.active_payment_id].status))throw fail('payment_unresolved');
-        const operation=beginOperation(order,{id:attemptId,type:'payment.create',intent:{mode,autocomplete,order_intent:order.intent}});
+        const operation=beginOperation(order,{id:attemptId,type:'payment.create',intent:{mode,autocomplete,order_intent:order.intent,fee:quoteApplicationFee(config.fee_policy,order.intent.total,scope)}});
         if(operation.state==='succeeded')return {cached:true,operation};
         if(operation.state==='failed')throw fail('operation_failed');
         if(mode==='embedded'&&operation.state==='ready'&&(typeof sourceToken!=='string'||!sourceToken||sourceToken.length>4096))throw fail('source_required');
+        if(mode==='hosted'&&operation.intent.fee)throw fail('hosted_fee_policy_unsupported');
         const ticket=claimOperation(operation,{now:now(),leaseMs});
         if(!operation.local_id){operation.local_id=operation.correlation_id;order.payments[operation.local_id]={schema:'kujo-commerce-payment/v1',schema_version:1,id:operation.local_id,order_id:order.id,status:'created',money:order.intent.total,mode};order.active_payment_id=operation.local_id;}
         order.collection_route=mode;await audit(tx,'payment.submitted',{local_id:operation.local_id});return {orderId,operation:structuredClone(operation),ticket};
       });
-      return execute(prepared,operation=>mode==='hosted'?provider.createOwnedCheckout({lines:operation.intent.order_intent.lines,reference_id:operation.correlation_id},providerConfig,env,{...context,idempotencyKey:operation.key}):provider.createPayment({source_id:sourceToken,money:operation.intent.order_intent.total,reference_id:operation.correlation_id,autocomplete},providerConfig,env,{...context,idempotencyKey:operation.key}),remote=>{
+      return execute(prepared,operation=>mode==='hosted'?provider.createOwnedCheckout({lines:operation.intent.order_intent.lines,reference_id:operation.correlation_id},providerConfig,env,{...context,idempotencyKey:operation.key}):provider.createPayment({source_id:sourceToken,money:operation.intent.order_intent.total,reference_id:operation.correlation_id,autocomplete,fee:operation.intent.fee},providerConfig,env,{...context,idempotencyKey:operation.key}),remote=>{
         if(mode==='hosted'){equalIntent(prepared.operation.intent.order_intent.total,remote.money);return {result:{local_id:prepared.operation.local_id,checkout_url:remote.checkout_url,provider_reference:remote.provider_reference,provider_order_id:remote.provider_order_id}};}
         const observation=provider.paymentObservation(remote,scope);return {result:{local_id:prepared.operation.local_id,provider_id:observation.provider_id,status:observation.status},observation};
       });
@@ -116,6 +120,7 @@ export function createPaymentService({store,provider,scope:inputScope,config={},
     },
     async observe({orderId,localId,observation,receipt}){return store.transact(scope,orderId,async tx=>{const result=await recordObservation(tx,localId,observation);if(receipt)await tx.complete(receipt);return result;});},
     async reconcile({orderId,attemptId,type='payment.create'}){
+      if(!['payment.create','payment.capture','payment.cancel','refund.create'].includes(type))throw fail('unsupported_reconciliation_type');
       const prepared=await store.transact(scope,orderId,async tx=>{
         const operation=required(tx).operations[operationKey(type,attemptId)];if(!operation)throw fail('operation_not_found');
         if(operation.state==='failed')throw fail('operation_failed');

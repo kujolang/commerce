@@ -4,3 +4,5 @@ export {createPaymentService} from './service.mjs';
 export {createSquarePaymentWebhook,processPaymentWebhook} from './webhooks.mjs';
 export {createStorageConsent,createLifecycleService} from './lifecycle.mjs';
 export {createInvoiceService} from './invoices.mjs';
+export {quoteApplicationFee} from './fees.mjs';
+export {reconcileOwnedOrders,publishPaymentOutbox,assertDeploymentManifest} from './recovery.mjs';

@@ -54,3 +54,11 @@ test('delayed capture and cancellation preserve local identity and observed term
     assert.equal(fixture.calls.filter(call=>call.path.endsWith(action==='capture'?'/complete':'/cancel')).length,1);
   }
 });
+
+test('unknown create cannot be bypassed by canceling the local order',async()=>{
+  const {service,fixture}=setup();await service.create(input);fixture.lose();
+  await assert.rejects(()=>service.pay({orderId:'order',attemptId:'attempt',sourceToken:'source'}));
+  await assert.rejects(()=>service.setOrderState('order','canceled'),/payment_unresolved/);
+  await assert.rejects(()=>service.reconcile({orderId:'order',attemptId:'attempt',type:'untrusted'}),/unsupported_reconciliation_type/);
+  assert.equal((await service.reconcile({orderId:'order',attemptId:'attempt'})).status,'completed');
+});

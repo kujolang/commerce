@@ -38,7 +38,8 @@
     "./runtime/payments": "./runtime/payments.mjs",
     "./connections": "./src/connections/index.mjs",
     "./adapters/postgres-connections": "./adapters/postgres-connections.mjs",
-    "./runtime/connections": "./runtime/connections.mjs"
+    "./runtime/connections": "./runtime/connections.mjs",
+    "./integrations": "./src/integrations/index.mjs"
   },
   "files": [
     "bin",

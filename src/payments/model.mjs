@@ -35,8 +35,9 @@ export function createOrder(input,{now=()=>new Date().toISOString()}={}){
 export function transitionOrder(order,state){
   const allowed={open:['canceled','fulfilled'],fulfilled:[],canceled:[]};
   if(!allowed[order.state]?.includes(state))throw fail('invalid_order_transition');
-  if(state==='fulfilled'&&!Object.values(order.payments).some(payment=>payment.status==='completed'))throw fail('payment_not_completed');
-  if(state==='canceled'&&Object.values(order.payments).some(payment=>['pending','authorized','completed'].includes(payment.status)))throw fail('payment_unresolved');
+  if(state==='fulfilled'&&!Object.values(order.payments).some(payment=>payment.status==='completed')&&!(order.invoice?.status==='PAID'&&order.invoice.paid_money?.amount===order.intent.total.amount&&order.invoice.paid_money?.currency===order.intent.total.currency))throw fail('payment_not_completed');
+  if(state==='canceled'&&['invoice','terminal','subscription'].includes(order.collection_route))throw fail('collection_unresolved');
+  if(state==='canceled'&&Object.values(order.payments).some(payment=>['created','pending','authorized','completed'].includes(payment.status)))throw fail('payment_unresolved');
   return {...order,state};
 }
 export function assertObservation(scope,observation,expected){
@@ -54,10 +55,11 @@ export function applyObservation(record,observation){
   if(incoming<previous)return false;
   if(record.status!==observation.status&&!transitions[record.status]?.includes(observation.status)){
     // A later conflicting terminal observation requires human reconciliation.
-    if(incoming===previous)return false;
+    if(incoming===previous&&transitions[observation.status]?.includes(record.status))return false;
     throw fail('conflicting_provider_state');
   }
   const next={...record,status:observation.status,provider_id:observation.provider_id,observed_at:observation.updated_at};
+  if(observation.financials)next.financials=structuredClone(observation.financials);
   if(observation.version_token!==undefined)next.version_token=observation.version_token;
   if(observation.order_id)next.provider_order_id=assertStableId(observation.order_id);
   if(canonicalJson(next)===canonicalJson(record))return false;
@@ -92,4 +94,12 @@ export function locateInOrder(order,{kind='payment',provider_id,reference_id,pro
     (kind==='payment'&&reference_id&&record.id===reference_id)||
     (kind==='payment'&&provider_order_id&&(record.provider_order_id===provider_order_id||Object.values(order.operations).some(operation=>operation.local_id===record.id&&operation.result?.provider_order_id===provider_order_id)))
   ).map(record=>({order_id:order.id,local_id:record.id}));
+}
+
+export function scopedProviderConfig(scope,config={}){
+  scopeOf(scope);if(config.location_id!==scope.location_id)throw fail('location_mismatch');
+  if(scope.provider!=='square')return {...config};
+  const api_base=scope.environment==='sandbox'?'https://connect.squareupsandbox.com':'https://connect.squareup.com';
+  if(config.api_base&&String(config.api_base).replace(/\/$/,'')!==api_base)throw fail('environment_mismatch');
+  return {...config,api_base};
 }

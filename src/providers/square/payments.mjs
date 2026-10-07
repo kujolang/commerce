@@ -1,3 +1,4 @@
+import {providerFinancials} from '../../payments/fees.mjs';
 import {squareJson,requiredOperationKey,query} from './client.mjs';
 import {money,fail,scopeOf} from '../../payments/model.mjs';
 const paymentStates={PENDING:'pending',APPROVED:'authorized',COMPLETED:'completed',FAILED:'failed',CANCELED:'canceled'};
@@ -6,6 +7,7 @@ function observation(value,scope,kind){
   const status=(kind==='payment'?paymentStates:refundStates)[value.status];
   if(!status||value.location_id!==scope.location_id)throw fail('provider_observation_mismatch');
   const result={schema:'kujo-commerce-provider-observation/v1',schema_version:1,scope:scopeOf(scope),kind,provider_id:value.id,status,money:money(value.amount_money),updated_at:value.updated_at||value.created_at};
+  result.financials=providerFinancials(value);
   if(value.version_token!==undefined)result.version_token=value.version_token;
   if(value.order_id)result.order_id=value.order_id;
   if(kind==='refund')result.payment_id=value.payment_id;
@@ -18,7 +20,8 @@ export const paymentMethods={
     const body={idempotency_key:requiredOperationKey(context.idempotencyKey),source_id:input.source_id,amount_money:money(input.money),location_id:config.location_id,reference_id:input.reference_id,autocomplete:input.autocomplete!==false};
     if(input.customer_id)body.customer_id=input.customer_id;
     if(input.order_id)body.order_id=input.order_id;
-    // Fees and raw card fields are intentionally not accepted by this primitive.
+    if(input.fee){if(config.fee_policy?.enabled!==true||input.fee.policy_id!==config.fee_policy.id)throw fail('fee_policy_not_authorized');body.app_fee_money=input.fee.amount_money;body.app_fee_allocations=input.fee.allocations;}
+    // Raw card fields are never accepted by this primitive.
     return (await squareJson('/v2/payments',body,config,env,context)).payment;
   },
   async retrievePayment(id,config,env,context){return (await squareJson(`/v2/payments/${encodeURIComponent(id)}`,undefined,config,env,context,'GET')).payment;},
