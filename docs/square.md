@@ -15,3 +15,5 @@ The adapter retrieves subscriptions, schedules end-of-cycle cancellation, and su
 Relevant Square references: [Subscriptions API](https://developer.squareup.com/reference/square/subscriptions-api), [Create subscription](https://developer.squareup.com/reference/square/subscriptions-api/create-subscription), [Cards API](https://developer.squareup.com/docs/cards-api/overview), [customer search](https://developer.squareup.com/docs/customers-api/use-the-api/search-customers), and [pause/resume/cancel](https://developer.squareup.com/docs/subscriptions-api/pause-resume-cancel-subscriptions).
 
 Webhook verification requires the exact public `notification_url` and subscription signature key because Square signs `notification_url + raw_body` with HMAC-SHA256.
+
+See the [Step 1 correctness repair and upgrade procedure](square-step1-implementation.md) for event semantics, immutable provider keys, long hosted-attempt rejection and legacy subscription reconciliation.

@@ -88,7 +88,15 @@ export async function subscriptionHandler(request,{catalog,config,env={},fetch:r
   const operationId=String(input.operation_id||''),sku=String(input.sku||'');if(!/^[A-Za-z0-9_-]{1,128}$/.test(operationId)||!sku)return error('operation_id and sku are required');
   const adapter=providerFor(catalog.provider),product=catalog.products.find(value=>value.sku===sku);if(!adapter.capabilities.subscriptions||typeof adapter.createSubscription!=='function')return error('Configured provider does not support direct subscription enrollment',400);if(!product||product.type!=='subscription'||product.availability!=='available')return error('Unknown or unavailable subscription SKU',400);
   if(typeof resolveSubscriptionContext!=='function')return error('Subscription authentication is not configured',503);let trusted;try{trusted=await resolveSubscriptionContext(request,{operation_id:operationId,sku});}catch{return error('Subscription authentication failed',401);}if(!trusted?.customerId||!trusted?.consent)return error('Authenticated customer and consent evidence are required',400);
-  const providerConfig={...(config.checkout||{}),...(config.providers?.[catalog.provider]||{})},spec={operation_id:operationId,type:'subscription.create',idempotency_key:`kujo-${operationId}`.slice(0,45),intent:{provider:catalog.provider,sku,offer_revision:product.offer_revision||null,customer_reference:trusted.customerReference||null}};
+  const providerConfig={...(config.checkout||{}),...(config.providers?.[catalog.provider]||{})};
+  // Bind server-authorized effect parameters, not browser claims or secrets.
+  // Legacy rows without this binding fail closed; do not silently reinterpret them.
+  const spec={operation_id:operationId,type:'subscription.create',intent:{
+    provider:catalog.provider,sku,offer_revision:product.offer_revision||null,customer_reference:trusted.customerReference||null,
+    execution:{api_base:providerConfig.api_base||'https://connect.squareupsandbox.com',location_id:providerConfig.location_id||null,
+      connection_id:trusted.connectionId||null,customer_id:trusted.customerId,card_id:trusted.cardId||null,
+      start_date:trusted.startDate||null,provider_mapping:product.provider,source_name:providerConfig.source_name||'Commerce Integration'}
+  }};
   try{const result=await executeProviderOperation(spec,{store:idempotencyStore,mutate:idempotencyKey=>adapter.createSubscription({...product,quantity:1,provider:product.provider},providerConfig,env,requestContext(config,{...trusted,idempotencyKey,fetch:requestFetch})),recover:adapter.recoverSubscription?record=>adapter.recoverSubscription(record,providerConfig,env,requestContext(config,{...trusted,fetch:requestFetch})):undefined});return json(result,201);}
   catch(failure){onDiagnostic?.({operation:'subscription_create',provider:catalog.provider,requestId:failure.requestId||null,code:failure.code||'provider_request_failed'});return error('Subscription could not be created',502);}
 }

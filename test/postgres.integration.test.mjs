@@ -9,6 +9,47 @@ import {processNext} from '../src/durability.mjs';
 
 const connectionString=process.env.COMMERCE_POSTGRES_URL;
 
+test('PostgreSQL operation keys survive races, reconnects and legacy state recovery',{skip:!connectionString},async()=>{
+  let pool=new pg.Pool({connectionString,max:8});const schema=`commerce_keys_${process.pid}_${Date.now()}`;
+  const operation=id=>({operation_id:id,type:'subscription.create',intent:{provider:'square',merchant:'merchant_1',environment:'sandbox'}});
+  try{
+    let stores=createPostgresCommerce({pool,schema});await stores.migrate();
+    const a=operation('a'.repeat(100)+'1'),b=operation('a'.repeat(100)+'2');
+    const contenders=await Promise.all(Array.from({length:24},()=>stores.operationStore.begin(a)));
+    const key=contenders[0].idempotency_key;
+    assert.match(key,/^[0-9a-f-]{36}$/);assert.equal(new Set(contenders.map(row=>row.idempotency_key)).size,1);
+    assert.notEqual((await stores.operationStore.begin(b)).idempotency_key,key);
+    assert.notEqual((await stores.operationStore.begin({...b,operation_id:'card',type:'card.create'})).idempotency_key,key);
+    for(const change of [{type:'card.create'},{intent:{...a.intent,merchant:'merchant_2'}},{intent:{...a.intent,environment:'production'}}])await assert.rejects(()=>stores.operationStore.begin({...a,...change}),/conflicts/);
+    // Seed exactly the old persisted format; no new field or migration required.
+    for(const state of ['not_started','succeeded','unknown','submitted'])await pool.query(`INSERT INTO ${schema}.provider_operations (operation_id,operation_type,idempotency_key,intent,state,attempts,result) VALUES ($1,$2,$3,$4,$5,$6,$7)`,[`legacy-${state}`,'subscription.create','kujo-'+'x'.repeat(40),a.intent,state,state==='not_started'?0:1,state==='succeeded'?{id:'old-result'}:null]);
+    await pool.end();pool=new pg.Pool({connectionString,max:8});stores=createPostgresCommerce({pool,schema});await stores.migrate();
+    assert.equal((await stores.operationStore.begin(a)).idempotency_key,key);
+    for(const state of ['not_started','succeeded','unknown','submitted']){
+      const spec=operation(`legacy-${state}`);let calls=0;
+      const run=()=>executeProviderOperation(spec,{store:stores.operationStore,mutate:async received=>{calls++;assert.equal(received,'kujo-'+'x'.repeat(40));return{id:'retried'};}});
+      if(state==='submitted'){await assert.rejects(run,/transition/);assert.equal(calls,0);await stores.operationStore.transition(spec.operation_id,'unknown');}
+      assert.equal((await run()).id,state==='succeeded'?'old-result':'retried');
+      assert.equal(calls,state==='succeeded'?0:1);
+      assert.equal((await stores.operationStore.get(spec.operation_id)).idempotency_key,'kujo-'+'x'.repeat(40));
+    }
+    let calls=0,release;const barrier=new Promise(resolve=>{release=resolve;});
+    const runs=Array.from({length:12},()=>executeProviderOperation(a,{store:stores.operationStore,mutate:async received=>{calls++;assert.equal(received,key);await barrier;return{id:'one-effect'};}}));
+    // Attach rejection handlers before yielding; the winner remains submitted.
+    const settled=Promise.allSettled(runs);
+    while(calls===0)await new Promise(resolve=>setTimeout(resolve,5));
+    release();await settled;assert.equal(calls,1);
+    assert.equal((await stores.operationStore.get(a.operation_id)).attempts,1);
+    // An accepted provider effect with a lost local commit reuses its key.
+    const crash=operation('crash-after-external-success'),effects=new Map();let breakCommit=true;
+    const store={...stores.operationStore,transition:async(id,state,details)=>{if(state==='succeeded'&&breakCommit){breakCommit=false;throw new Error('commit unavailable');}return stores.operationStore.transition(id,state,details);}};
+    const mutate=async received=>{if(!effects.has(received))effects.set(received,{id:'accepted'});return effects.get(received);};
+    await assert.rejects(()=>executeProviderOperation(crash,{store,mutate}),/commit unavailable/);
+    await pool.end();pool=new pg.Pool({connectionString,max:8});stores=createPostgresCommerce({pool,schema});
+    assert.equal((await executeProviderOperation(crash,{store:stores.operationStore,mutate})).id,'accepted');assert.equal(effects.size,1);
+  }finally{await pool.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`);await pool.end();}
+});
+
 test('PostgreSQL adapter survives duplicate ingress, lease recovery, retries, and concurrent outbox workers',{skip:!connectionString},async()=>{
   const pool=new pg.Pool({connectionString,max:6}),schema=`commerce_test_${process.pid}_${Date.now()}`;
   try{

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Repair Square event/schema compatibility with six additive v1 event types; payment.created now reports payment creation rather than order creation, and unknown notifications cannot imply completion.
+- Allocate provider-operation UUID keys atomically when omitted, preserve stored legacy keys, bind subscription effect intent, and reject lossy Square keys instead of truncating them. Legacy unbound subscription rows fail closed pending reconciliation; see [Step 1 upgrade/report](docs/square-step1-implementation.md).
+
 - Document the Square integration architecture review, existing provider/domain boundaries, reproducible contract/idempotency gaps, and phased Sandbox, recovery, OAuth and commercialization plan.
 
 - Add an optional PostgreSQL 16 reference adapter with migrations, atomic webhook ingress, semantic operations, queue leases, dead letters, reconciliation cursors, transactional outbox, replay claims, consumer deduplication, and operator audit storage.
