@@ -7,8 +7,8 @@ export async function loadSquare(environment,{document:doc=document}={}){
 }
 // The host supplies a same-origin session endpoint and authenticated cookies.
 // Tokens live only in this call stack; never localStorage, URLs, or diagnostics.
-export async function mountSquareCheckout({form,cardTarget,button,status,session,sessionUrl,payUrl,statusUrl,fetch:request=fetch,square}={}){
-  for(const value of [sessionUrl,payUrl,statusUrl])if(new URL(value,location.href).origin!==location.origin)throw new Error('Checkout endpoints must be same-origin');
+export async function mountSquareCheckout({form,cardTarget,button,status,session,sessionUrl,payUrl,statusUrl,restartUrl,fetch:request=fetch,square}={}){
+  for(const value of [sessionUrl,payUrl,statusUrl,...(restartUrl?[restartUrl]:[])])if(new URL(value,location.href).origin!==location.origin)throw new Error('Checkout endpoints must be same-origin');
   const announce=text=>{status.textContent=text;};status.setAttribute('role','status');status.setAttribute('aria-live','polite');
   let busy=false,locked=false,destroyed=false;
   const json=async(url,options)=>{const response=await request(url,{credentials:'same-origin',...options});let data;try{data=await response.json();}catch{throw new Error('Checkout response unavailable');}if(!response.ok)throw Object.assign(new Error(data.error||'Checkout unavailable'),{code:data.error});return data;};
@@ -29,5 +29,5 @@ export async function mountSquareCheckout({form,cardTarget,button,status,session
     finally{busy=false;button.disabled=locked;}
   }
   form.addEventListener('submit',submit);if(locked)await refresh();
-  return {refresh,async destroy(){destroyed=true;form.removeEventListener('submit',submit);await card.destroy();}};
+  return {refresh,async restart(){if(!restartUrl||busy||destroyed)throw new Error('Checkout restart unavailable');const state=await refresh();if(!state.payments.length||state.payments.some(payment=>!['failed','canceled'].includes(payment.status)))throw new Error('Payment status needs confirmation');await json(restartUrl,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({order_id:details.session_id})});locked=false;button.disabled=false;announce('Ready for a new payment attempt.');},async destroy(){destroyed=true;form.removeEventListener('submit',submit);await card.destroy();}};
 }

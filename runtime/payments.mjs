@@ -3,7 +3,7 @@ import {moneyDecimal} from '../src/money.mjs';
 import {fail} from '../src/payments/model.mjs';
 
 const json=(value,status=200)=>Response.json(value,{status,headers:{'cache-control':'no-store','x-content-type-options':'nosniff'}});
-const publicOrder=order=>({id:order.id,state:order.state,money:order.intent.total,payments:Object.values(order.payments).map(payment=>({id:payment.id,status:payment.status,money:payment.money})),refunds:Object.values(order.refunds).map(refund=>({id:refund.id,payment_id:refund.payment_id,status:refund.status,money:refund.money}))});
+const publicOrder=order=>({id:order.id,state:order.state,invoice:order.invoice||null,money:order.intent.total,payments:Object.values(order.payments).map(payment=>({id:payment.id,status:payment.status,money:payment.money})),refunds:Object.values(order.refunds).map(refund=>({id:refund.id,payment_id:refund.payment_id,status:refund.status,money:refund.money}))});
 export function createPaymentHandlers({service,authorize,resolveOrder,rateLimit,origin,applicationId,now=Date.now}={}){
   if(!service||typeof authorize!=='function'||typeof rateLimit!=='function'||!origin)throw fail('payment_http_configuration_required');
   const configuredOrigin=new URL(origin);if(service.scope.environment==='production'&&configuredOrigin.protocol!=='https:')throw fail('secure_origin_required');
@@ -42,6 +42,7 @@ export function createPaymentHandlers({service,authorize,resolveOrder,rateLimit,
       const result=await service.pay({orderId:order.id,attemptId:order.checkout_attempt_id,sourceToken:body.source_token,mode:body.mode==='hosted'?'hosted':'embedded'});
       return json(result,201);
     }),
+    restart:request=>handle(request,'checkout.restart',async({order})=>{if(!order)throw fail('invalid_request');return json(await service.restartCheckout(order.id));}),
     status:request=>handle(request,'payment.read',async({order})=>order?json(publicOrder(order)):json({error:'order_not_found'},404),{get:true}),
     refund:request=>handle(request,'payment.refund',async({body,order})=>{if(!order)throw fail('invalid_request');return json(await service.refund({orderId:order.id,paymentId:body.payment_id,refundId:body.operation_id,amount:body.amount,reason:body.reason}),201);},{operator:true}),
     capture:request=>handle(request,'payment.capture',async({body,order})=>{if(!order)throw fail('invalid_request');return json(await service.changePayment({orderId:order.id,paymentId:body.payment_id,action:'capture',operationId:body.operation_id}));},{operator:true}),

@@ -10,7 +10,7 @@ async function mount(page,{fail=false,existing=false}={}){
     document.body.innerHTML='<form><div id="card"></div><button>Pay</button><p id="status"></p></form>';
     const {mountSquareCheckout}=await import('/assets/commerce/square-checkout.js');
     window.tokenizations=0;
-    window.checkout=await mountSquareCheckout({form:document.querySelector('form'),cardTarget:'#card',button:document.querySelector('button'),status:document.querySelector('#status'),session:{items:[{sku:'item',quantity:1}]},sessionUrl:'/session',payUrl:'/pay',statusUrl:'/status',square:{payments:()=>({card:async()=>({attach:async()=>{},destroy:async()=>{},tokenize:async details=>{window.tokenizations++;window.verification=details;await new Promise(resolve=>setTimeout(resolve,50));return{status:'OK',token:'ephemeral'};}})})}});
+    window.checkout=await mountSquareCheckout({form:document.querySelector('form'),cardTarget:'#card',button:document.querySelector('button'),status:document.querySelector('#status'),session:{items:[{sku:'item',quantity:1}]},sessionUrl:'/session',payUrl:'/pay',statusUrl:'/status',restartUrl:'/restart',square:{payments:()=>({card:async()=>({attach:async()=>{},destroy:async()=>{},tokenize:async details=>{window.tokenizations++;window.verification=details;await new Promise(resolve=>setTimeout(resolve,50));return{status:'OK',token:'ephemeral'};}})})}});
   });
   return ()=>submissions;
 }
@@ -26,4 +26,19 @@ test('uncertain payment remains locked and refresh never submits a new charge',a
 });
 test('existing pending payment disables submission before tokenization',async({page})=>{
   const submissions=await mount(page,{existing:true});await expect(page.locator('button')).toBeDisabled();expect(submissions()).toBe(0);expect(await page.evaluate(()=>window.tokenizations)).toBe(0);
+});
+
+test('explicit restart refuses an uncertain payment',async({page})=>{
+  await mount(page,{fail:true});await page.locator('button').click();
+  await expect(page.locator('#status')).toContainText('needs confirmation');
+  expect(await page.evaluate(async()=>{try{await window.checkout.restart();return 'unexpected';}catch(error){return error.message;}})).toBe('Payment status needs confirmation');
+  await expect(page.locator('button')).toBeDisabled();
+});
+
+
+test('confirmed failed payment can explicitly start a new attempt',async({page})=>{
+  await mount(page,{fail:true});await page.locator('button').click();await expect(page.locator('#status')).toContainText('needs confirmation');
+  await page.route('**/status?*',route=>route.fulfill({json:{payments:[{status:'failed'}]}}));
+  let restarts=0;await page.route('**/restart',route=>{restarts++;return route.fulfill({json:{id:'order'}});});
+  await page.evaluate(()=>window.checkout.restart());await expect(page.locator('button')).toBeEnabled();expect(restarts).toBe(1);
 });
