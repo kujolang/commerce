@@ -1,6 +1,6 @@
 {
   "name": "@kujolang/commerce",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Provider-agnostic commerce for static sites with first-class Kujo SSG integration",
   "keywords": [
     "static-site",
