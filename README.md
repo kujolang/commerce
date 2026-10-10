@@ -1,23 +1,16 @@
 # Kujo Commerce
 
-Provider-neutral commerce infrastructure for static and dynamic sites, ranging from zero-runtime hosted links to production-shaped checkout, subscriptions, verified events, and optional durable processing.
+[![Version](https://img.shields.io/badge/version-0.5.0-black)](https://github.com/kujolang/commerce/releases/tag/v0.5.0)
+[![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
+[![Kujo SSG](https://img.shields.io/badge/integrates%20with-Kujo%20SSG-white.svg)](https://github.com/kujolang/ssg)
 
-Kujo Commerce validates product definitions, emits a trusted public catalog and presentation-neutral browser components, creates provider-hosted checkouts, opens provider-managed customer portals, and verifies/normalizes provider webhooks. Providers remain authoritative for payments, customers, subscriptions, orders, inventory, tax, and fulfillment. Commerce does not collect card data and is not a merchant system of record.
+Add product catalogs, hosted checkout, carts, and verified payment events to static or dynamic sites. Start with ordinary purchase links. Add a runtime, durable storage, and payment operations when your site needs them.
 
-## Adoption levels
+Commerce works with Kujo SSG and other site generators. It keeps payment code outside the SSG and leaves payments, tax, inventory, and settlement with your provider.
 
-1. Catalog only: generate `/_kujo/commerce/catalog.json` and assets.
-2. Hosted Link: ordinary HTTPS purchase links, no JavaScript or runtime required.
-3. Dynamic checkout: browser cart sends only SKU and quantity; a Web-API runtime resolves trusted provider identifiers.
-4. Verified webhooks: exact raw-body verification and normalized v1 events.
-5. Durable event processing: optional receipt, queue, lease, retry, dead-letter, and replay interfaces.
-6. Recurring lifecycle: consent evidence, semantic idempotency, and provider-specific subscription operations.
-7. Provider reconciliation: optional current-state retrieval, bounded recovery windows, cursors, and drift reports.
-8. Signed downstream events: provider-neutral billing facts for fulfillment and entitlement consumers.
+## Quick start
 
-Levels 1–4 remain lightweight. Static and hosted-link builds do not load a database, queue, cloud SDK, or provider API. Levels 5–8 are opt-in interfaces whose production implementations are supplied by the deployer.
-
-Kujo SSG users run:
+Requires Node.js 20 or later.
 
 ```sh
 npm install @kujolang/commerce
@@ -27,41 +20,60 @@ npx kujo-commerce build --site . --ssg vendor/ssg/build.kujo
 npx kujo-commerce doctor --site .
 ```
 
-`init` defaults to zero-runtime Static Mode. Products use pre-created provider
-checkout links and the result can be hosted on GitHub Pages or any static file
-host. Use `--mode hybrid` only when the site needs dynamic checkout or other
-edge functionality. See [Static Mode](docs/static-mode.md) and the
-[copyable hosted-link example](examples/static-links/README.md).
+Set `--ssg` to your Kujo SSG build script. The initializer creates a Static Mode configuration: products use pre-created HTTPS checkout links, with no browser JavaScript or server required. Host the output on GitHub Pages or any static file host. See the [Static Mode guide](docs/static-mode.md) and [hosted-link example](examples/static-links/README.md).
 
-Generic static generators can call `loadConfig()`, `loadProducts()`, `validateStore()`, and `buildStatic()`, then embed `<kujo-buy-button sku="..."></kujo-buy-button>`, `<kujo-cart></kujo-cart>`, or the documented data attributes. Commerce UI has no SiteKit dependency.
+Use `init --mode hybrid` for a cart or dynamic checkout. The browser sends SKU and quantity; the runtime resolves trusted product and provider data.
 
-## First-party providers
+Other generators can use `loadConfig()`, `loadProducts()`, `validateStore()`, and `buildStatic()`. Add `<kujo-buy-button sku="..."></kujo-buy-button>`, `<kujo-cart></kujo-cart>`, or the documented data attributes to your templates. The browser components do not depend on SiteKit. See [generic static integration](docs/generic-static.md).
 
-Stripe, Polar, PayPal, Square, Paddle, Lemon Squeezy, Link, and Mock are provider adapters behind one conformance-tested contract. Run `kujo-commerce providers --json` for the exact capability declaration. Provider differences are intentional; one-product and quantity restrictions are enforced at build time, in the browser, and again in the runtime.
+## Choose what to add
 
-## Stable v1 contracts
+| Need | Commerce provides |
+| --- | --- |
+| Product pages | Validated products, variants, exact prices, a public catalog, and browser assets |
+| Simple purchases | Hosted checkout links with no runtime |
+| Dynamic checkout | A cart, provider-hosted checkout, and customer portals |
+| Payment events | Raw-body webhook verification and normalized events |
+| Reliable processing | Optional receipts, queues, leases, retries, dead letters, and replay |
+| Recurring payments | Consent records, idempotent operations, and provider-specific subscription actions |
+| Recovery | Provider-state lookups, bounded reconciliation, and drift reports |
+| Fulfillment integration | Signed billing events for your fulfillment or entitlement service |
 
-- catalog: `kujo-commerce/v1`
-- cart: `kujo-cart/v1`
-- normalized event: `kujo-commerce-event/v1`
-- exact money: integer minor units plus ISO currency and presentation display
-- runtime: Web Platform `Request`, `Response`, `fetch`, and Web Crypto
+Static builds need no database, queue, cloud SDK, or provider API call. Durable processing needs storage and workers supplied by your deployment; an optional PostgreSQL adapter and [deployment example](examples/postgres-production/README.md) are included. In-memory stores are test fixtures.
 
-The wire formats are frozen for v1 while the package remains pre-1.0 for final
-provider sandbox evidence. See the [compatibility and deprecation policy](docs/compatibility.md),
-[architecture](docs/architecture.md), [products and variants](docs/products.md),
-[providers](docs/providers.md), [generic static integration](docs/generic-static.md),
-[runtime and webhooks](docs/runtime.md), [deployment](docs/deployment.md),
-[production backend guide](docs/production-backend.md), [reference deployments](examples/reference/README.md),
-[subscription lifecycle](docs/subscriptions.md), [reconciliation](docs/reconciliation.md),
-[signed downstream events](docs/downstream-events.md), [persistence adapters](docs/persistence-adapters.md),
-[provider authoring](docs/provider-authoring.md), [operator runbook](docs/operator-runbook.md),
-[failure recovery](docs/failure-recovery.md), [staging promotion](docs/staging-runbook.md),
-[PostgreSQL topology](examples/postgres-production/README.md), [migration](docs/migration-0.5.md),
-[Static Mode](docs/static-mode.md),
-[production checklist](docs/production-checklist.md), [security policy](SECURITY.md),
-and [threat model](docs/threat-model.md).
+## Providers and release scope
 
-### Optional owned Square payments
+Commerce includes adapters for Stripe, Polar, PayPal, Square, Paddle, Lemon Squeezy, Link, and Mock. Each declares its supported features. Run `npx kujo-commerce providers --json` for the capability list. Product and quantity restrictions are checked during builds, in the browser, and in the runtime.
 
-See [owned payments](docs/owned-payments.md), [encrypted merchant connections](docs/square-connections.md), [implementation and acceptance status](docs/square-implementation-status.md), and the [deployment example](examples/owned-payments/README.md). These optional server modules preserve the static commerce contract. Fees and catalog/inventory/Terminal/reporting integrations default off; live Sandbox and commercial acceptance are required before production promotion.
+The maintainer has confirmed working Square and Stripe integrations. Version 0.5.0 ships the core commerce tool and optional Square payment modules. That confirmation does not establish live acceptance of every adapter or optional feature. See the [acceptance status](docs/square-implementation-status.md) for the tested boundaries and remaining checks.
+
+Optional Square modules add owned orders, direct payments and refunds, embedded card tokenization, saved-card consent, subscriptions, invoices, and encrypted merchant connections. Sensitive card entry stays in Square's SDK; Commerce receives a transient token. Application fees, catalog/inventory integrations, Terminal, and reporting remain off by default. Enable them only after the relevant provider and deployment checks. See [owned payments](docs/owned-payments.md), [merchant connections](docs/square-connections.md), and the [owned-payment example](examples/owned-payments/README.md).
+
+## Contracts and upgrades
+
+The package remains pre-1.0. Its v1 wire contracts are frozen:
+
+- Catalog: `kujo-commerce/v1`
+- Cart: `kujo-cart/v1`
+- Events: `kujo-commerce-event/v1`
+- Money: integer minor units, ISO currency, and display text
+- Runtime: Web Platform `Request`, `Response`, `fetch`, and Web Crypto
+
+Static and hosted-link users need no configuration changes for 0.5.0. Runtime and custom-adapter users should read the [migration guide](docs/migration-0.5.md), [compatibility policy](docs/compatibility.md), and [changelog](CHANGELOG.md).
+
+## Documentation
+
+- **Build a store:** [architecture](docs/architecture.md), [products and variants](docs/products.md), [providers](docs/providers.md), [runtime and webhooks](docs/runtime.md).
+- **Deploy:** [deployment](docs/deployment.md), [production backend](docs/production-backend.md), [persistence](docs/persistence-adapters.md), [reference examples](examples/reference/README.md), [production checklist](docs/production-checklist.md).
+- **Operate:** [subscriptions](docs/subscriptions.md), [reconciliation](docs/reconciliation.md), [downstream events](docs/downstream-events.md), [operator runbook](docs/operator-runbook.md), [failure recovery](docs/failure-recovery.md), [staging checks](docs/staging-runbook.md).
+- **Extend and maintain:** [provider authoring](docs/provider-authoring.md), [security policy](SECURITY.md), [threat model](docs/threat-model.md), [release policy](docs/release.md).
+
+## Development
+
+```sh
+npm ci
+npm run validate
+npm run test:browser
+```
+
+Install Playwright's browsers before running browser tests. PostgreSQL tests need an isolated database set through `COMMERCE_POSTGRES_URL`. Provider Sandbox tests need separate test credentials and explicit opt-in for mutations; see the [staging runbook](docs/staging-runbook.md).

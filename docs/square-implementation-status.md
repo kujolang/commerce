@@ -1,6 +1,6 @@
 # Square implementation and acceptance status
 
-Updated 2026-10-07. This implements the locally testable roadmap from [the architecture review](square-integration-review.md), after the committed F1/F2 prerequisite fixes. API protocol remains pinned to `2026-09-16`. The package has not been published or promoted to production.
+Updated 2026-10-10. This implements the locally testable roadmap from [the architecture review](square-integration-review.md), after the committed F1/F2 prerequisite fixes. API protocol remains pinned to `2026-09-16`. Version 0.5.0 packages these modules for release. Production acceptance remains specific to each enabled feature and deployment.
 
 | Roadmap step | Implemented surface | Boundary |
 | --- | --- | --- |
@@ -23,7 +23,9 @@ Local validation includes provider contracts, schema validation of generated pay
 
 Run `COMMERCE_POSTGRES_URL=... npm run validate`, `npm run test:browser`, and `npm run test:postgres` with an isolated test database. Tests create and remove unique schemas. Sandbox mutations are opt-in with `COMMERCE_RUN_MUTATING_SANDBOX=true`; `npm run test:sandbox` skips when the needed credentials are absent. The dedicated Square payment suite always uses `connect.squareupsandbox.com`, checks duplicate create, declines, retrieval, partial/full refunds, delayed capture and cancellation. Retain Sandbox test IDs in a protected acceptance record when run; failures may leave Sandbox objects requiring review.
 
-**External acceptance remains unverified:** credentialed single-owner payment/webhook/SCA tests; two-seller OAuth consent/refresh/revoke; live card storage and subscription/invoice billing; Terminal hardware; application-fee recipient eligibility and accounting; merchant commercial terms/Marketplace requirements; production secrets, CSP, backup restore and deployment monitoring. These are explicit promotion gates, not claims established by fixture tests. See the architecture review's current official sources and commercialization analysis.
+**Maintainer report (2026-10-10):** Square and Stripe integrations have been confirmed working. This report does not specify environments or cover every lifecycle path; it does not replace feature-specific acceptance evidence.
+
+**Feature-specific acceptance still requires recorded evidence:** credentialed single-owner payment/webhook/SCA tests; two-seller OAuth consent/refresh/revoke; live card storage and subscription/invoice billing; Terminal hardware; application-fee recipient eligibility and accounting; merchant commercial terms/Marketplace requirements; production secrets, CSP, backup restore and deployment monitoring. These are explicit promotion gates, not claims established by fixture tests. See the architecture review's current official sources and commercialization analysis.
 
 ## Operational invariants
 
