@@ -2,14 +2,32 @@ name: Release artifacts
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to publish to npm
+        required: true
+        type: string
 jobs:
   attest:
     runs-on: ubuntu-latest
+    environment: npm
     permissions: { contents: write, id-token: write, attestations: write }
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
       - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: npm }
+        with:
+          node-version: 24
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - name: Verify release tag
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          test "$RELEASE_TAG" = "v$(node -p "require('./package.json').version")"
+          test "$(git rev-parse HEAD)" = "$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")"
       - run: npm ci
       - run: npm run validate
       - run: npm pack
@@ -20,6 +38,13 @@ jobs:
         with: { subject-path: "${{ steps.artifact.outputs.path }}" }
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
           files: |
             ${{ steps.artifact.outputs.path }}
             sbom.cdx.json
+      - name: Publish verified tarball to npm
+        run: npm publish "${{ steps.artifact.outputs.path }}" --ignore-scripts --access public --provenance
+      - name: Verify npm release
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          npm view "@kujolang/commerce@$version" version
