@@ -4,13 +4,11 @@ The package remains pre-v1. A tag build runs deterministic validation, produces
 the npm tarball and CycloneDX SBOM, attaches both to the GitHub release, and
 records GitHub build provenance. The repository lockfile is authoritative.
 
-Starting with 0.4.0, releases are published publicly as
-`@kujolang/commerce`. The first scoped publication uses an authenticated npm
-maintainer with two-factor authentication and `npm publish --access public`.
-The current tag workflow creates GitHub release artifacts; it does not publish
-to npm. Publish the verified release tarball separately with an authenticated
-maintainer. Future automation can use npm trusted publishing after the package's
-trusted-publisher relationship and a publish step are configured.
+Releases publish publicly as `@kujolang/commerce`. The tag workflow publishes
+its verified tarball to npm using trusted publishing. Configure the npm
+publisher relationship for `kujolang/commerce`, workflow `release.yml`, and
+environment `npm` before running it. See [Publishing Commerce](RELEASING.md)
+for setup, existing-tag recovery, and the authenticated local fallback.
 
 Tags must never be moved. Breaking v0.x changes require changelog and migration
 documentation. A v1 release requires completed sandbox evidence for advertised
