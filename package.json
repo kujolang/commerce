@@ -68,7 +68,7 @@
     "validate": "node --check bin/kujo-commerce.mjs && node --check runtime/index.mjs && node --check browser/commerce.js && npm run security:patterns && npm test"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.23.4 <23 || >=24.22.1 <25 || >=26.12.1"
   },
   "publishConfig": {
     "access": "public",
