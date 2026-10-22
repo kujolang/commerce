@@ -43,8 +43,28 @@ jobs:
             ${{ steps.artifact.outputs.path }}
             sbom.cdx.json
       - name: Publish verified tarball to npm
-        run: npm publish "${{ steps.artifact.outputs.path }}" --ignore-scripts --access public --provenance
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          if npm view "@kujolang/commerce@$version" dist.shasum > published-shasum.txt 2> registry-error.txt; then
+            expected="$(sha1sum "${{ steps.artifact.outputs.path }}" | cut -d ' ' -f 1)"
+            test "$(cat published-shasum.txt)" = "$expected"
+            echo "Exact release artifact is already published."
+          elif grep -q 'E404' registry-error.txt; then
+            npm publish "${{ steps.artifact.outputs.path }}" --ignore-scripts --access public --provenance
+          else
+            cat registry-error.txt >&2
+            exit 1
+          fi
       - name: Verify npm release
         run: |
           version="$(node -p "require('./package.json').version")"
-          npm view "@kujolang/commerce@$version" version
+          expected="$(sha1sum "${{ steps.artifact.outputs.path }}" | cut -d ' ' -f 1)"
+          for attempt in $(seq 1 20); do
+            if actual="$(npm view "@kujolang/commerce@$version" dist.shasum)"; then
+              test "$actual" = "$expected"
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "Published package did not become available within five minutes." >&2
+          exit 1
