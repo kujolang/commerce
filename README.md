@@ -1,6 +1,6 @@
 # Kujo Commerce
 
-[![Version](https://img.shields.io/badge/version-0.5.0-black)](https://github.com/kujolang/commerce/releases/tag/v0.5.0)
+[![Version](https://img.shields.io/badge/version-0.5.1-black)](https://github.com/kujolang/commerce/releases/tag/v0.5.1)
 [![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 [![Kujo SSG](https://img.shields.io/badge/integrates%20with-Kujo%20SSG-white.svg)](https://github.com/kujolang/ssg)
 
@@ -10,7 +10,7 @@ Commerce works with Kujo SSG and other site generators. It keeps payment code ou
 
 ## Quick start
 
-Requires Node.js 20 or later.
+Requires Node.js 22.23.4+, 24.22.1+, or 26.12.1+ within the supported release lines.
 
 ```sh
 npm install @kujolang/commerce
@@ -45,7 +45,7 @@ Static builds need no database, queue, cloud SDK, or provider API call. Durable 
 
 Commerce includes adapters for Stripe, Polar, PayPal, Square, Paddle, Lemon Squeezy, Link, and Mock. Each declares its supported features. Run `npx kujo-commerce providers --json` for the capability list. Product and quantity restrictions are checked during builds, in the browser, and in the runtime.
 
-The maintainer has confirmed working Square and Stripe integrations. Version 0.5.0 ships the core commerce tool and optional Square payment modules. That confirmation does not establish live acceptance of every adapter or optional feature. See the [acceptance status](docs/square-implementation-status.md) for the tested boundaries and remaining checks.
+The maintainer has confirmed working Square and Stripe integrations. Version 0.5.1 ships the core commerce tool and optional Square payment modules. That confirmation does not establish live acceptance of every adapter or optional feature. See the [acceptance status](docs/square-implementation-status.md) for the tested boundaries and remaining checks.
 
 Optional Square modules add owned orders, direct payments and refunds, embedded card tokenization, saved-card consent, subscriptions, invoices, and encrypted merchant connections. Sensitive card entry stays in Square's SDK; Commerce receives a transient token. Application fees, catalog/inventory integrations, Terminal, and reporting remain off by default. Enable them only after the relevant provider and deployment checks. See [owned payments](docs/owned-payments.md), [merchant connections](docs/square-connections.md), and the [owned-payment example](examples/owned-payments/README.md).
 
@@ -59,7 +59,7 @@ The package remains pre-1.0. Its v1 wire contracts are frozen:
 - Money: integer minor units, ISO currency, and display text
 - Runtime: Web Platform `Request`, `Response`, `fetch`, and Web Crypto
 
-Static and hosted-link users need no configuration changes for 0.5.0. Runtime and custom-adapter users should read the [migration guide](docs/migration-0.5.md), [compatibility policy](docs/compatibility.md), and [changelog](CHANGELOG.md).
+Static and hosted-link users need no configuration changes for 0.5.1. Runtime and custom-adapter users should read the [migration guide](docs/migration-0.5.md), [compatibility policy](docs/compatibility.md), and [changelog](CHANGELOG.md).
 
 ## Documentation
 

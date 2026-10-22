@@ -15,7 +15,7 @@ not permit incompatible changes to the frozen v1 wire contracts.
 
 ## Supported runtimes
 
-Node 20, 22, and 24 are tested. Browser behavior is tested in current Chromium,
+Patched Node 22, 24, and 26 release lines are tested; package engines declare the minimum supported patch versions. Browser behavior is tested in current Chromium,
 Firefox, and WebKit. Cloudflare Pages/Workers use the standards-based adapter;
 Vercel's Node request/response bridge, Netlify's standards Request adapter, and
 the direct Node bridge have deterministic contract tests.

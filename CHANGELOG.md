@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.5.1 - 2026-10-22
+
+- Require patched Node.js release lines and verify Node 26 alongside Node 22 and 24.
+- Publish the verified release tarball to npm with GitHub Actions provenance.
+- Synchronize the PostgreSQL concurrent token-refresh regression test without changing runtime contracts.
+
 ## 0.5.0 - 2026-10-10
 
 - Rewrite the README with monochrome badges, setup instructions, and explicit provider and optional-feature scope.
